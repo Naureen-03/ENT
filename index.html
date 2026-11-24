@@ -1,0 +1,3633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAFEWAY — Smart Tourist Safety Monitoring & Incident Response System</title>
+  
+  <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS for Real Interactive OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            gov: {
+              950: '#071426',
+              900: '#0B1F3A',
+              800: '#102A4C',
+              700: '#1D3B63',
+              100: '#E6EEF8',
+              50: '#F4F7FA',
+            }
+          },
+          boxShadow: {
+            'gov': '0 1px 3px rgba(11,31,58,0.06), 0 4px 12px rgba(11,31,58,0.04)',
+            'gov-md': '0 4px 16px rgba(11,31,58,0.08), 0 1px 3px rgba(11,31,58,0.05)',
+            'gov-lg': '0 12px 32px rgba(11,31,58,0.12), 0 2px 6px rgba(11,31,58,0.06)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React, ReactDOM, Babel -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #F4F7FA;
+      color: #0F172A;
+      overflow-x: hidden;
+    }
+
+    /* Authoritative Gov-Tech Surface Cards */
+    .gov-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 1px 3px rgba(11, 31, 58, 0.06), 0 4px 12px rgba(11, 31, 58, 0.04);
+    }
+
+    .gov-panel {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+    }
+
+    .gov-header {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid #E2E8F0;
+    }
+
+    /* Clean Light Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F4F7FA;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0284C7;
+    }
+
+    /* Leaflet Clean Cartographic Styling */
+    .leaflet-container {
+      background: #E2E8F0 !important;
+      font-family: 'Plus Jakarta Sans', sans-serif !important;
+      z-index: 10;
+    }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background: #FFFFFF !important;
+      color: #0F172A !important;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 10px 25px rgba(11, 31, 58, 0.14) !important;
+      border-radius: 12px !important;
+    }
+    .leaflet-popup-close-button {
+      color: #64748B !important;
+    }
+    .leaflet-control-zoom a {
+      background: #FFFFFF !important;
+      color: #0B1F3A !important;
+      border-color: #CBD5E1 !important;
+      font-weight: 700 !important;
+    }
+    .leaflet-control-zoom a:hover {
+      background: #F1F5F9 !important;
+      color: #0284C7 !important;
+    }
+    .leaflet-control-attribution {
+      background: rgba(255, 255, 255, 0.9) !important;
+      color: #475569 !important;
+      font-size: 10px !important;
+    }
+    .leaflet-control-attribution a {
+      color: #0284C7 !important;
+    }
+
+    /* Official Credential Card Guilloche Pattern */
+    .credential-card {
+      background: #FFFFFF;
+      background-image: radial-gradient(#CBD5E1 0.65px, transparent 0.65px);
+      background-size: 14px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.75; }
+      100% { transform: scale(1.9); opacity: 0; }
+    }
+    .sos-pulse {
+      animation: pulseRing 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #FFFFFF !important; }
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-sky-500/20 selection:text-gov-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    // =========================================================================
+    // 1. MULTILINGUAL DICTIONARY (10 FULL LANGUAGES)
+    // =========================================================================
+    const LANGUAGES = [
+      { code: 'en', label: 'English', native: 'English' },
+      { code: 'hi', label: 'Hindi', native: 'हिन्दी' },
+      { code: 'mr', label: 'Marathi', native: 'मराठी' },
+      { code: 'gu', label: 'Gujarati', native: 'ગુજરાતી' },
+      { code: 'bn', label: 'Bengali', native: 'বাংলা' },
+      { code: 'ta', label: 'Tamil', native: 'தமிழ்' },
+      { code: 'te', label: 'Telugu', native: 'తెలుగు' },
+      { code: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+      { code: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+      { code: 'es', label: 'Spanish', native: 'Español' }
+    ];
+
+    const TRANSLATIONS = {
+      en: {
+        tagline: "Explore Freely. Travel Safely.",
+        startJourney: "Start Your Journey",
+        authorityDashboard: "Authority Dashboard",
+        touristPortal: "Tourist Portal",
+        commandCentre: "Authority Command Centre",
+        dashboard: "Dashboard",
+        digitalId: "Digital Tourist ID",
+        sosEmergency: "SOS Emergency",
+        myTrips: "Trips & Safety",
+        safeGuide: "SafeGuide AI",
+        incidents: "Incident Management",
+        aiAnomaly: "AI Anomaly Detection",
+        geoFencing: "Geo-Fencing Zones",
+        smartDevices: "Smart IoT Bands",
+        touristsDir: "Monitored Tourists",
+        analytics: "Analytics & Reports",
+        safetyScore: "Live Safety Score",
+        triggerSos: "TRIGGER EMERGENCY SOS",
+        sosActive: "SOS EMERGENCY ACTIVE",
+        safeStatus: "SAFE",
+        cautionStatus: "CAUTION",
+        emergencyStatus: "EMERGENCY",
+        activeTourists: "Active Monitored",
+        activeEmergencies: "Active Emergencies",
+        resolvedIncidents: "Resolved Incidents",
+        responseTeams: "Response Teams",
+        welcomeBack: "Welcome back",
+        liveMonitoring: "Real-Time Telemetry Active",
+        switchRole: "Switch Portal",
+        home: "Home"
+      },
+      hi: {
+        tagline: "स्वतंत्र रूप से घूमें। सुरक्षित यात्रा करें।",
+        startJourney: "अपनी यात्रा शुरू करें",
+        authorityDashboard: "प्राधिकरण डैशबोर्ड",
+        touristPortal: "पर्यटक पोर्टल",
+        commandCentre: "प्राधिकरण कमांड सेंटर",
+        dashboard: "डैशबोर्ड",
+        digitalId: "डिजिटल पर्यटक आईडी",
+        sosEmergency: "SOS आपातकाल",
+        myTrips: "यात्राएं और सुरक्षा",
+        safeGuide: "सेफगाइड AI",
+        incidents: "घटना प्रबंधन",
+        aiAnomaly: "AI विसंगति पहचान",
+        geoFencing: "जियो-फेंसिंग ज़ोन",
+        smartDevices: "स्मार्ट IoT बैंड",
+        touristsDir: "निगरानी वाले पर्यटक",
+        analytics: "विश्लेषण और रिपोर्ट",
+        safetyScore: "लाइव सुरक्षा स्कोर",
+        triggerSos: "आपातकालीन SOS सक्रिय करें",
+        sosActive: "SOS आपातकाल सक्रिय है",
+        safeStatus: "सुरक्षित",
+        cautionStatus: "सावधानी",
+        emergencyStatus: "आपातकाल",
+        activeTourists: "सक्रिय निगरानी",
+        activeEmergencies: "सक्रिय आपातकाल",
+        resolvedIncidents: "हल की गई घटनाएं",
+        responseTeams: "प्रतिक्रिया दल",
+        welcomeBack: "वापसी पर स्वागत है",
+        liveMonitoring: "रियल-टाइम टेलीमेट्री सक्रिय",
+        switchRole: "पोर्टल बदलें",
+        home: "मुख्य पृष्ठ"
+      },
+      mr: {
+        tagline: "मुक्तपणे फिरा. सुरक्षित प्रवास करा.",
+        startJourney: "तुमचा प्रवास सुरू करा",
+        authorityDashboard: "प्राधिकरण डॅशबोर्ड",
+        touristPortal: "पर्यटक पोर्टल",
+        commandCentre: "प्राधिकरण कमांड सेंटर",
+        dashboard: "डॅशबोर्ड",
+        digitalId: "डिजिटल पर्यटक ओळखपत्र",
+        sosEmergency: "SOS आणीबाणी",
+        myTrips: "प्रवास आणि सुरक्षा",
+        safeGuide: "सेफगाईड AI",
+        incidents: "घटना व्यवस्थापन",
+        aiAnomaly: "AI विसंगती शोध",
+        geoFencing: "जिओ-फेन्सिंग क्षेत्रे",
+        smartDevices: "स्मार्ट IoT बँड",
+        touristsDir: "निरीक्षणाखालील पर्यटक",
+        analytics: "विश्लेषण आणि अहवाल",
+        safetyScore: "थेट सुरक्षा गुण",
+        triggerSos: "आणीबाणी SOS सुरू करा",
+        sosActive: "SOS आणीबाणी सक्रिय",
+        safeStatus: "सुरक्षित",
+        cautionStatus: "सावधानता",
+        emergencyStatus: "आणीबाणी",
+        activeTourists: "सक्रिय पर्यटक",
+        activeEmergencies: "सक्रिय आणीबाणी",
+        resolvedIncidents: "सोडवलेल्या घटना",
+        responseTeams: "प्रतिसाद पथके",
+        welcomeBack: "पुन्हा स्वागत आहे",
+        liveMonitoring: "रिअल-टाइम देखरेख सक्रिय",
+        switchRole: "पोर्टल बदला",
+        home: "मुख्यपृष्ठ"
+      },
+      gu: {
+        tagline: "મુક્તપણે ફરો. સુરક્ષિત મુસાફરી કરો.",
+        startJourney: "તમારી મુસાફરી શરૂ કરો",
+        authorityDashboard: "ઓથોરિટી ડેશબોર્ડ",
+        touristPortal: "પ્રવાસી પોર્ટલ",
+        commandCentre: "ઓથોરિટી કમાન્ડ સેન્ટર",
+        dashboard: "ડેશબોર્ડ",
+        digitalId: "ડિજિટલ ટુરિસ્ટ ID",
+        sosEmergency: "SOS કટોકટી",
+        myTrips: "પ્રવાસ અને સુરક્ષા",
+        safeGuide: "સેફગાઇડ AI",
+        incidents: "ઘટના વ્યવસ્થાપન",
+        aiAnomaly: "AI વિસંગતતા શોધ",
+        geoFencing: "જિયો-ફેન્સિંગ ઝોન",
+        smartDevices: "સ્માર્ટ IoT બેન્ડ",
+        touristsDir: "દેખરેખ હેઠળના પ્રવાસીઓ",
+        analytics: "વિશ્લેષણ અને અહેવાલો",
+        safetyScore: "લાઇવ સુરક્ષા સ્કોર",
+        triggerSos: "કટોકટી SOS શરૂ કરો",
+        sosActive: "SOS કટોકટી સક્રિય",
+        safeStatus: "સુરક્ષિત",
+        cautionStatus: "સાવચેતી",
+        emergencyStatus: "કટોકટી",
+        activeTourists: "સક્રિય પ્રવાસીઓ",
+        activeEmergencies: "સક્રિય કટોકટી",
+        resolvedIncidents: "ઉકેલાયેલી ઘટનાઓ",
+        responseTeams: "પ્રતિભાવ ટીમો",
+        welcomeBack: "ફરી સ્વાગત છે",
+        liveMonitoring: "રીઅલ-ટાઇમ ટેલિમેટ્રી સક્રિય",
+        switchRole: "પોર્ટલ બદલો",
+        home: "હોમ"
+      },
+      bn: {
+        tagline: "মুক্তভাবে ঘুরুন। নিরাপদে ভ্রমণ করুন।",
+        startJourney: "আপনার যাত্রা শুরু করুন",
+        authorityDashboard: "কর্তৃপক্ষ ড্যাশবোর্ড",
+        touristPortal: "পর্যটক পোর্টাল",
+        commandCentre: "কর্তৃপক্ষ কমান্ড সেন্টার",
+        dashboard: "ড্যাশবোর্ড",
+        digitalId: "ডিজিটাল ট্যুরিস্ট আইডি",
+        sosEmergency: "SOS জরুরি অবস্থা",
+        myTrips: "ভ্রমণ ও নিরাপত্তা",
+        safeGuide: "সেফগাইড AI",
+        incidents: "ঘটনা ব্যবস্থাপনা",
+        aiAnomaly: "AI অসঙ্গতি সনাক্তকরণ",
+        geoFencing: "জিও-ফেন্সিং জোন",
+        smartDevices: "স্মার্ট IoT ব্যান্ড",
+        touristsDir: "পর্যবেক্ষণকৃত পর্যটক",
+        analytics: "বিশ্লেষণ ও রিপোর্ট",
+        safetyScore: "লাইভ নিরাপত্তা স্কোর",
+        triggerSos: "জরুরি SOS চালু করুন",
+        sosActive: "SOS জরুরি অবস্থা সক্রিয়",
+        safeStatus: "নিরাপদ",
+        cautionStatus: "সতর্কতা",
+        emergencyStatus: "জরুরি",
+        activeTourists: "সक्रিয় পর্যটক",
+        activeEmergencies: "সক্রিয় জরুরি অবস্থা",
+        resolvedIncidents: "সমাধানকৃত ঘটনা",
+        responseTeams: "রেসপন্স টিম",
+        welcomeBack: "স্বাগতম",
+        liveMonitoring: "রিয়েল-টাইম পর্যবেক্ষণ সক্রিয়",
+        switchRole: "পোর্টাল পরিবর্তন",
+        home: "হোম"
+      },
+      ta: {
+        tagline: "சுதந்திரமாக சுற்றிப் பாருங்கள். பாதுகாப்பாகப் பயணியுங்கள்.",
+        startJourney: "உங்கள் பயணத்தைத் தொடங்குங்கள்",
+        authorityDashboard: "அதிகாரப்பூர்வ டாஷ்போர்டு",
+        touristPortal: "சுற்றுலாப் பயணி போர்டல்",
+        commandCentre: "அதிகாரக் கட்டளை மையம்",
+        dashboard: "டாஷ்போர்டு",
+        digitalId: "டிஜிட்டல் சுற்றுலா அடையாள அட்டை",
+        sosEmergency: "SOS அவசரநிலை",
+        myTrips: "பயணங்கள் & பாதுகாப்பு",
+        safeGuide: "சேஃப்கைடு AI",
+        incidents: "சம்பவ மேலாண்மை",
+        aiAnomaly: "AI முரண்பாடு கண்டறிதல்",
+        geoFencing: "ஜியோ-ஃபென்சிங் மண்டலங்கள்",
+        smartDevices: "ஸ்மார்ட் IoT பேண்டுகள்",
+        touristsDir: "கண்காணிக்கப்படும் பயணிகள்",
+        analytics: "பகுப்பாய்வு & அறிக்கைகள்",
+        safetyScore: "நேரடி பாதுகாப்பு மதிப்பெண்",
+        triggerSos: "அவசர SOS ஐ இயக்கவும்",
+        sosActive: "SOS அவசரநிலை செயலில் உள்ளது",
+        safeStatus: "பாதுகாப்பானது",
+        cautionStatus: "எச்சரிக்கை",
+        emergencyStatus: "அவசரநிலை",
+        activeTourists: "செயலில் உள்ள பயணிகள்",
+        activeEmergencies: "செயலில் உள்ள அவசரநிலைகள்",
+        resolvedIncidents: "தீர்க்கப்பட்ட சம்பவங்கள்",
+        responseTeams: "மீட்புக் குழுக்கள்",
+        welcomeBack: "மீண்டும் வருக",
+        liveMonitoring: "நேரடி கண்காணிப்பு செயலில்",
+        switchRole: "போர்ட்டலை மாற்று",
+        home: "முகப்பு"
+      },
+      te: {
+        tagline: "స్వేచ్ఛగా అన్వేషించండి. సురక్షితంగా ప్రయాణించండి.",
+        startJourney: "మీ ప్రయాణాన్ని ప్రారంభించండి",
+        authorityDashboard: "అధికార డ్యాష్‌బోర్డ్",
+        touristPortal: "పర్యాటక పోర్టల్",
+        commandCentre: "అధికార కమాండ్ సెంటర్",
+        dashboard: "డ్యాష్‌బోర్డ్",
+        digitalId: "డిజిటల్ టూరిస్ట్ ID",
+        sosEmergency: "SOS అత్యవసరం",
+        myTrips: "ప్రయాణాలు & భద్రత",
+        safeGuide: "సేఫ్‌గైడ్ AI",
+        incidents: "సంఘటన నిర్వహణ",
+        aiAnomaly: "AI అసాధారణత గుర్తింపు",
+        geoFencing: "జియో-ఫెన్సింగ్ జోన్లు",
+        smartDevices: "స్మార్ట్ IoT బ్యాండ్‌లు",
+        touristsDir: "పర్యవేక్షించబడే పర్యాటకులు",
+        analytics: "విశ్లేషణ & నివేదికలు",
+        safetyScore: "లైవ్ సేఫ్టీ స్కోర్",
+        triggerSos: "అత్యవసర SOS ప్రారంభించండి",
+        sosActive: "SOS అత్యవసరం యాక్టివ్‌గా ఉంది",
+        safeStatus: "సురక్షితం",
+        cautionStatus: "హెచ్చరిక",
+        emergencyStatus: "అత్యవసరం",
+        activeTourists: "యాక్టివ్ పర్యాటకులు",
+        activeEmergencies: "యాక్టివ్ అత్యవసరాలు",
+        resolvedIncidents: "పరిష్కరించిన సంఘటనలు",
+        responseTeams: "ప్రతిస్పందన బృందాలు",
+        welcomeBack: "తిరిగి స్వాగతం",
+        liveMonitoring: "రియల్-టైమ్ పర్యవేక్షణ యాక్టివ్",
+        switchRole: "పోర్టల్ మార్చండి",
+        home: "హోమ్"
+      },
+      kn: {
+        tagline: "ಮುಕ್ತವಾಗಿ ಅನ್ವೇಷಿಸಿ. ಸುರಕ್ಷಿತವಾಗಿ ಪ್ರಯಾಣಿಸಿ.",
+        startJourney: "ನಿಮ್ಮ ಪ್ರಯಾಣವನ್ನು ಪ್ರಾರಂಭಿಸಿ",
+        authorityDashboard: "ಪ್ರಾಧಿಕಾರ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+        touristPortal: "ಪ್ರವಾಸಿ ಪೋರ್ಟಲ್",
+        commandCentre: "ಪ್ರಾಧಿಕಾರ ಕಮಾಂಡ್ ಸೆಂಟರ್",
+        dashboard: "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+        digitalId: "ಡಿಜಿಟಲ್ ಪ್ರವಾಸಿ ID",
+        sosEmergency: "SOS ತುರ್ತು ಪರಿಸ್ಥಿತಿ",
+        myTrips: "ಪ್ರಯಾಣಗಳು ಮತ್ತು ಸುರಕ್ಷತೆ",
+        safeGuide: "ಸೇಫ್‌ಗೈಡ್ AI",
+        incidents: "ಘಟನೆ ನಿರ್ವಹಣೆ",
+        aiAnomaly: "AI ಅಸಂಗತತೆ ಪತ್ತೆ",
+        geoFencing: "ಜಿಯೋ-ಫೆನ್ಸಿಂಗ್ ವಲಯಗಳು",
+        smartDevices: "ಸ್ಮಾರ್ಟ್ IoT ಬ್ಯಾಂಡ್‌ಗಳು",
+        touristsDir: "ಮೇಲ್ವಿಚಾರಣೆಯ ಪ್ರವಾಸಿಗರು",
+        analytics: "ವಿಶ್ಲೇಷಣೆ ಮತ್ತು ವರದಿಗಳು",
+        safetyScore: "ನೇರ ಸುರಕ್ಷತಾ ಸ್ಕೋರ್",
+        triggerSos: "ತುರ್ತು SOS ಸಕ್ರಿಯಗೊಳಿಸಿ",
+        sosActive: "SOS ತುರ್ತು ಪರಿಸ್ಥಿತಿ ಸಕ್ರಿಯವಾಗಿದೆ",
+        safeStatus: "ಸುರಕ್ಷಿತ",
+        cautionStatus: "ಎಚ್ಚರಿಕೆ",
+        emergencyStatus: "ತುರ್ತು",
+        activeTourists: "ಸಕ್ರಿಯ ಪ್ರವಾಸಿಗರು",
+        activeEmergencies: "ಸಕ್ರಿಯ ತುರ್ತು ಪರಿಸ್ಥಿತಿಗಳು",
+        resolvedIncidents: "ಪರಿಹರಿಸಲಾದ ಘಟನೆಗಳು",
+        responseTeams: "ಪ್ರತಿಕ್ರಿಯೆ ತಂಡಗಳು",
+        welcomeBack: "ಮರಳಿ ಸ್ವಾಗತ",
+        liveMonitoring: "ನೈಜ-ಸಮಯದ ಮೇಲ್ವಿಚಾರಣೆ ಸಕ್ರಿಯ",
+        switchRole: "ಪೋರ್ಟಲ್ ಬದಲಾಯಿಸಿ",
+        home: "ಮುಖಪುಟ"
+      },
+      ml: {
+        tagline: "സ്വതന്ത്രമായി സഞ്ചരിക്കൂ. സുരക്ഷിതമായി യാത്ര ചെയ്യൂ.",
+        startJourney: "നിങ്ങളുടെ യാത്ര ആരംഭിക്കുക",
+        authorityDashboard: "അതോറിറ്റി ഡാഷ്‌ബോർഡ്",
+        touristPortal: "ടൂറിസ്റ്റ് പോർട്ടൽ",
+        commandCentre: "അതോറിറ്റി കമാൻഡ് സെന്റർ",
+        dashboard: "ഡാഷ്‌ബോർഡ്",
+        digitalId: "ഡിജിറ്റൽ ടൂറിസ്റ്റ് ഐഡി",
+        sosEmergency: "SOS അടിയന്തരാവസ്ഥ",
+        myTrips: "യാത്രകളും സുരക്ഷയും",
+        safeGuide: "സേഫ്ഗൈഡ് AI",
+        incidents: "സംഭവ നിയന്ത്രണം",
+        aiAnomaly: "AI അപാകത കണ്ടെത്തൽ",
+        geoFencing: "ജിയോ-ഫെൻസിംഗ് സോണുകൾ",
+        smartDevices: "സ്മാർട്ട് IoT ബാൻഡുകൾ",
+        touristsDir: "നിരീക്ഷിക്കുന്ന വിനോദസഞ്ചാരികൾ",
+        analytics: "അനലിറ്റിക്സ് & റിപ്പോർട്ടുകൾ",
+        safetyScore: "തത്സമയ സുരക്ഷാ സ്കോർ",
+        triggerSos: "അടിയന്തര SOS പ്രവർത്തിപ്പിക്കുക",
+        sosActive: "SOS അടിയന്തരാവസ്ഥ സജീവമാണ്",
+        safeStatus: "സുരക്ഷിതം",
+        cautionStatus: "ജാഗ്രത",
+        emergencyStatus: "അടിയന്തരം",
+        activeTourists: "സജീവ സഞ്ചാരികൾ",
+        activeEmergencies: "സജീവ അടിയന്തരാവസ്ഥകൾ",
+        resolvedIncidents: "പരിഹരിച്ച സംഭവങ്ങൾ",
+        responseTeams: "പ്രതികരണ സംഘങ്ങൾ",
+        welcomeBack: "വീണ്ടും സ്വാഗതം",
+        liveMonitoring: "തത്സമയ നിരീക്ഷണം സജീവം",
+        switchRole: "പോർട്ടൽ മാറ്റുക",
+        home: "ഹോം"
+      },
+      es: {
+        tagline: "Explora Libremente. Viaja Seguro.",
+        startJourney: "Comienza Tu Viaje",
+        authorityDashboard: "Panel de Autoridades",
+        touristPortal: "Portal del Turista",
+        commandCentre: "Centro de Comando",
+        dashboard: "Panel Principal",
+        digitalId: "ID Digital de Turista",
+        sosEmergency: "Emergencia SOS",
+        myTrips: "Viajes y Seguridad",
+        safeGuide: "Asistente SafeGuide AI",
+        incidents: "Gestión de Incidentes",
+        aiAnomaly: "Detección de Anomalías IA",
+        geoFencing: "Zonas Geo-Cercadas",
+        smartDevices: "Bandas Inteligentes IoT",
+        touristsDir: "Turistas Monitoreados",
+        analytics: "Analítica y Reportes",
+        safetyScore: "Puntaje de Seguridad",
+        triggerSos: "ACTIVAR EMERGENCIA SOS",
+        sosActive: "EMERGENCIA SOS ACTIVA",
+        safeStatus: "SEGURO",
+        cautionStatus: "PRECAUCIÓN",
+        emergencyStatus: "EMERGENCIA",
+        activeTourists: "Turistas Activos",
+        activeEmergencies: "Emergencias Activas",
+        resolvedIncidents: "Incidentes Resueltos",
+        responseTeams: "Equipos de Respuesta",
+        welcomeBack: "Bienvenido de nuevo",
+        liveMonitoring: "Telemetría en Tiempo Real Activa",
+        switchRole: "Cambiar Portal",
+        home: "Inicio"
+      }
+    };
+
+    // =========================================================================
+    // 2. INITIAL DEMO DATASET (20 TOURISTS, 8 INCIDENTS, 5 AI ALERTS, 5 TEAMS, 5 ZONES, 5 DEVICES)
+    // =========================================================================
+    const INITIAL_DATA = {
+      tourists: [
+        { id: "SW-IND-2026-8492", name: "Aarav Sharma", nationality: "India", age: 28, phone: "+91 98204 55120", emergencyContact: "Meera Sharma (+91 98204 55121)", destination: "North Goa Coastal Circuit", locationName: "Baga Beach Promenade, Goa", lat: 15.5553, lng: 73.7517, safetyScore: 94, status: "Safe", deviceId: "BAND-GW-101", battery: 88, verified: true, expiry: "2026-12-15", monitoring: true, bloodGroup: "O+" },
+        { id: "SW-UK-2026-3104", name: "Elena Rostova", nationality: "United Kingdom", age: 31, phone: "+44 7700 900412", emergencyContact: "Victor Rostov (+44 7700 900988)", destination: "Calangute & Aguada Heritage", locationName: "Fort Aguada Cliff Edge, Goa", lat: 15.4920, lng: 73.7736, safetyScore: 68, status: "Caution", deviceId: "BAND-GW-102", battery: 64, verified: true, expiry: "2026-12-08", monitoring: true, bloodGroup: "A+" },
+        { id: "SW-USA-2026-5921", name: "Marcus Vance", nationality: "United States", age: 35, phone: "+1 415 890 3319", emergencyContact: "Claire Vance (+1 415 890 3320)", destination: "Dudhsagar & Western Ghats", locationName: "Sinquerim South Rocks, Goa", lat: 15.4989, lng: 73.7675, safetyScore: 32, status: "Emergency", deviceId: "BAND-GW-103", battery: 41, verified: true, expiry: "2026-12-10", monitoring: true, bloodGroup: "B-" },
+        { id: "SW-IND-2026-7741", name: "Priya Deshmukh", nationality: "India", age: 25, phone: "+91 97654 11209", emergencyContact: "Rajesh Deshmukh (+91 97654 11200)", destination: "Pune Sahyadri Trek", locationName: "Sinhagad Fort Ridge, Pune", lat: 18.3663, lng: 73.7559, safetyScore: 91, status: "Safe", deviceId: "BAND-PN-204", battery: 95, verified: true, expiry: "2026-12-20", monitoring: true, bloodGroup: "B+" },
+        { id: "SW-GER-2026-4410", name: "Lukas Weber", nationality: "Germany", age: 29, phone: "+49 151 23456789", emergencyContact: "Hannah Weber (+49 151 98765432)", destination: "Anjuna & Vagator Coast", locationName: "Chapora Fort Trail, Goa", lat: 15.6048, lng: 73.7366, safetyScore: 72, status: "Caution", deviceId: "BAND-GW-105", battery: 53, verified: true, expiry: "2026-12-11", monitoring: true, bloodGroup: "O-" },
+        { id: "SW-JPN-2026-6620", name: "Kenji Takahashi", nationality: "Japan", age: 33, phone: "+81 90 1234 5678", emergencyContact: "Yumi Takahashi (+81 90 8765 4321)", destination: "Old Goa Cultural Tour", locationName: "Basilica of Bom Jesus, Goa", lat: 15.5009, lng: 73.9116, safetyScore: 98, status: "Safe", deviceId: null, battery: 82, verified: true, expiry: "2026-12-19", monitoring: true, bloodGroup: "A-" },
+        { id: "SW-AUS-2026-1198", name: "Chloe Bennett", nationality: "Australia", age: 26, phone: "+61 412 345 678", emergencyContact: "David Bennett (+61 412 987 654)", destination: "Palolem & South Goa", locationName: "Candolim Beach Central, Goa", lat: 15.5181, lng: 73.7626, safetyScore: 89, status: "Safe", deviceId: null, battery: 77, verified: true, expiry: "2026-12-14", monitoring: true, bloodGroup: "AB+" },
+        { id: "SW-FRA-2026-9034", name: "Camille Laurent", nationality: "France", age: 30, phone: "+33 6 12 34 56 78", emergencyContact: "Luc Laurent (+33 6 87 65 43 21)", destination: "Panjim Heritage Quarter", locationName: "Fontainhas Latin Quarter, Panjim", lat: 15.4968, lng: 73.8312, safetyScore: 96, status: "Safe", deviceId: null, battery: 90, verified: true, expiry: "2026-12-22", monitoring: true, bloodGroup: "O+" },
+        { id: "SW-IND-2026-5088", name: "Rohan Kulkarni", nationality: "India", age: 34, phone: "+91 98811 22334", emergencyContact: "Sneha Kulkarni (+91 98811 22335)", destination: "Pune Heritage & Lakes", locationName: "Khadakwasla Dam Backwaters, Pune", lat: 18.4316, lng: 73.7634, safetyScore: 61, status: "Caution", deviceId: null, battery: 49, verified: true, expiry: "2026-12-05", monitoring: true, bloodGroup: "B+" },
+        { id: "SW-CAN-2026-7312", name: "Liam O'Connor", nationality: "Canada", age: 27, phone: "+1 604 555 0192", emergencyContact: "Sarah O'Connor (+1 604 555 0199)", destination: "Arambol & Ashwem", locationName: "Anjuna Flea Market Zone, Goa", lat: 15.5736, lng: 73.7407, safetyScore: 87, status: "Safe", deviceId: null, battery: 71, verified: true, expiry: "2026-12-18", monitoring: true, bloodGroup: "A+" },
+        { id: "SW-ESP-2026-8841", name: "Sofia Morales", nationality: "Spain", age: 29, phone: "+34 612 345 678", emergencyContact: "Carlos Morales (+34 698 765 432)", destination: "Goa Coastal Cycling", locationName: "Miramar Beach Circle, Panjim", lat: 15.4820, lng: 73.8072, safetyScore: 93, status: "Safe", deviceId: null, battery: 84, verified: true, expiry: "2026-12-25", monitoring: true, bloodGroup: "O+" },
+        { id: "SW-SGP-2026-4129", name: "Wei Jie Tan", nationality: "Singapore", age: 32, phone: "+65 9123 4567", emergencyContact: "Mei Ling Tan (+65 9876 5432)", destination: "Dona Paula & Zuari Bay", locationName: "Dona Paula Jetty Viewpoint, Goa", lat: 15.4526, lng: 73.8016, safetyScore: 95, status: "Safe", deviceId: null, battery: 92, verified: true, expiry: "2026-12-28", monitoring: true, bloodGroup: "B+" },
+        { id: "SW-IND-2026-3902", name: "Ananya Nair", nationality: "India", age: 24, phone: "+91 94470 11223", emergencyContact: "Suresh Nair (+91 94470 11224)", destination: "Pune City & Shaniwar Wada", locationName: "Shaniwar Wada Central, Pune", lat: 18.5196, lng: 73.8553, safetyScore: 97, status: "Safe", deviceId: null, battery: 88, verified: true, expiry: "2026-12-30", monitoring: true, bloodGroup: "O+" },
+        { id: "SW-ITA-2026-6045", name: "Matteo Conti", nationality: "Italy", age: 36, phone: "+39 333 123 4567", emergencyContact: "Giulia Conti (+39 333 765 4321)", destination: "Vagator Sunset Cliffs", locationName: "Ozran Beach Cliff Path, Goa", lat: 15.5975, lng: 73.7336, safetyScore: 65, status: "Caution", deviceId: null, battery: 38, verified: true, expiry: "2026-12-09", monitoring: true, bloodGroup: "A-" },
+        { id: "SW-KOR-2026-2781", name: "Ji-Hoon Park", nationality: "South Korea", age: 27, phone: "+82 10 1234 5678", emergencyContact: "Min-Seo Park (+82 10 8765 4321)", destination: "Calangute Water Sports", locationName: "Calangute Beach Hub, Goa", lat: 15.5439, lng: 73.7553, safetyScore: 90, status: "Safe", deviceId: null, battery: 79, verified: true, expiry: "2026-12-17", monitoring: true, bloodGroup: "AB-" },
+        { id: "SW-BRA-2026-9512", name: "Lucas Silva", nationality: "Brazil", age: 31, phone: "+55 11 98765 4321", emergencyContact: "Ana Silva (+55 11 91234 5678)", destination: "Mandovi River Cruise", locationName: "Mandovi Promenade, Panjim", lat: 15.5015, lng: 73.8285, safetyScore: 92, status: "Safe", deviceId: null, battery: 85, verified: true, expiry: "2026-12-21", monitoring: true, bloodGroup: "O+" },
+        { id: "SW-UAE-2026-1487", name: "Tariq Al-Mansoor", nationality: "UAE", age: 38, phone: "+971 50 123 4567", emergencyContact: "Fatima Al-Mansoor (+971 50 765 4321)", destination: "Candolim Luxury Resort", locationName: "Nerul River Bridge, Goa", lat: 15.5122, lng: 73.7785, safetyScore: 88, status: "Safe", deviceId: null, battery: 94, verified: true, expiry: "2026-12-27", monitoring: true, bloodGroup: "B+" },
+        { id: "SW-NLD-2026-7093", name: "Sanne De Vries", nationality: "Netherlands", age: 29, phone: "+31 6 12345678", emergencyContact: "Bram De Vries (+31 6 87654321)", destination: "Salim Ali Bird Sanctuary", locationName: "Chorao Island Ferry Point, Goa", lat: 15.5128, lng: 73.8682, safetyScore: 85, status: "Safe", deviceId: null, battery: 67, verified: true, expiry: "2026-12-16", monitoring: false, bloodGroup: "A+" },
+        { id: "SW-IND-2026-8210", name: "Vikramaditya Joshi", nationality: "India", age: 41, phone: "+91 98220 99887", emergencyContact: "Kavita Joshi (+91 98220 99888)", destination: "Mulshi Valley Retreat", locationName: "Mulshi Lake Viewpoint, Pune", lat: 18.5012, lng: 73.5114, safetyScore: 91, status: "Safe", deviceId: null, battery: 80, verified: true, expiry: "2026-12-23", monitoring: true, bloodGroup: "O-" },
+        { id: "SW-SWE-2026-5539", name: "Astrid Lindqvist", nationality: "Sweden", age: 26, phone: "+46 70 123 45 67", emergencyContact: "Erik Lindqvist (+46 70 765 43 21)", destination: "Morjim Turtle Beach", locationName: "Siolim Bridge North, Goa", lat: 15.6194, lng: 73.7631, safetyScore: 86, status: "Safe", deviceId: null, battery: 74, verified: false, expiry: "2026-12-12", monitoring: false, bloodGroup: "B+" }
+      ],
+      incidents: [
+        {
+          id: "INC-2026-901",
+          touristId: "SW-USA-2026-5921",
+          touristName: "Marcus Vance",
+          type: "SOS Emergency",
+          severity: "Critical",
+          location: "Sinquerim South Rocks, Goa (15.4989, 73.7675)",
+          lat: 15.4989,
+          lng: 73.7675,
+          time: "10 mins ago",
+          status: "Team Dispatched",
+          assignedTeam: "Alpha Coastal Rescue (Goa)",
+          notes: ["SOS triggered via Smart Band BAND-GW-103.", "High-tide rocky outcrop detected. Alpha Coastal Rescue boat dispatched."],
+          stage: 5
+        },
+        {
+          id: "INC-2026-902",
+          touristId: "SW-UK-2026-3104",
+          touristName: "Elena Rostova",
+          type: "Restricted Zone Entry",
+          severity: "High",
+          location: "Fort Aguada Unfenced Cliff Edge, Goa",
+          lat: 15.4920,
+          lng: 73.7736,
+          time: "24 mins ago",
+          status: "Investigating",
+          assignedTeam: "Bravo Tourist Patrol",
+          notes: ["Crossed Geo-Fence GF-02 perimeter warning boundary.", "Automated audio & SMS warning sent to tourist device."],
+          stage: 4
+        },
+        {
+          id: "INC-2026-903",
+          touristId: "SW-IND-2026-5088",
+          touristName: "Rohan Kulkarni",
+          type: "Route Deviation",
+          severity: "Medium",
+          location: "Khadakwasla Dam Backwaters, Pune",
+          lat: 18.4316,
+          lng: 73.7634,
+          time: "48 mins ago",
+          status: "New",
+          assignedTeam: "Unassigned",
+          notes: ["Deviated 2.4 km off registered trekking itinerary toward steep reservoir embankment."],
+          stage: 3
+        },
+        {
+          id: "INC-2026-904",
+          touristId: "SW-GER-2026-4410",
+          touristName: "Lukas Weber",
+          type: "Inactivity",
+          severity: "Medium",
+          location: "Chapora Fort Trail, Goa",
+          lat: 15.6048,
+          lng: 73.7366,
+          time: "1 hr ago",
+          status: "Investigating",
+          assignedTeam: "Delta Rapid Bike Unit",
+          notes: ["Zero accelerometer movement detected for 45 mins on remote trail."],
+          stage: 4
+        },
+        {
+          id: "INC-2026-905",
+          touristId: "SW-ITA-2026-6045",
+          touristName: "Matteo Conti",
+          type: "Medical Emergency",
+          severity: "High",
+          location: "Ozran Beach Cliff Path, Goa",
+          lat: 15.5975,
+          lng: 73.7336,
+          time: "2 hrs ago",
+          status: "Resolved",
+          assignedTeam: "Echo Medical Response",
+          notes: ["Heat exhaustion reported via app.", "Paramedics stabilized tourist; safely escorted to Mapusa District Hospital."],
+          stage: 6
+        },
+        {
+          id: "INC-2026-906",
+          touristId: "SW-AUS-2026-1198",
+          touristName: "Chloe Bennett",
+          type: "Restricted Zone Entry",
+          severity: "Low",
+          location: "Candolim Rip Current Sector B",
+          lat: 15.5181,
+          lng: 73.7626,
+          time: "3 hrs ago",
+          status: "Resolved",
+          assignedTeam: "Alpha Coastal Rescue (Goa)",
+          notes: ["Lifeguard unit alerted tourist away from high-surf rip current zone."],
+          stage: 6
+        },
+        {
+          id: "INC-2026-907",
+          touristId: "SW-IND-2026-7741",
+          touristName: "Priya Deshmukh",
+          type: "Route Deviation",
+          severity: "Low",
+          location: "Sinhagad Fort Ridge, Pune",
+          lat: 18.3663,
+          lng: 73.7559,
+          time: "5 hrs ago",
+          status: "Resolved",
+          assignedTeam: "Charlie Sahyadri Unit (Pune)",
+          notes: ["Tourist confirmed scenic detour via SafeGuide check-in prompt."],
+          stage: 6
+        },
+        {
+          id: "INC-2026-908",
+          touristId: "SW-SWE-2026-5539",
+          touristName: "Astrid Lindqvist",
+          type: "Missing Tourist",
+          severity: "High",
+          location: "Siolim Bridge North, Goa",
+          lat: 15.6194,
+          lng: 73.7631,
+          time: "Yesterday",
+          status: "Resolved",
+          assignedTeam: "Bravo Tourist Patrol",
+          notes: ["Phone battery depleted during ferry crossing. Located safe at Morjim guest house."],
+          stage: 6
+        }
+      ],
+      aiAlerts: [
+        {
+          id: "AI-771",
+          touristId: "SW-USA-2026-5921",
+          touristName: "Marcus Vance",
+          type: "Restricted Zone Entry + Rapid Elevation Drop",
+          riskScore: 96,
+          severity: "Critical",
+          reason: "Entered tidal rocky zone during high-tide warning + sudden 3.2m GPS altitude drop.",
+          explanation: "SAFEWAY Neural Sentinel correlated GPS trajectory entering Sinquerim hazardous surf rocks with sudden accelerometer impact spike.",
+          recommendation: "Immediate marine rescue dispatch and emergency contact escalation.",
+          timestamp: "11 mins ago",
+          status: "Escalated"
+        },
+        {
+          id: "AI-772",
+          touristId: "SW-UK-2026-3104",
+          touristName: "Elena Rostova",
+          type: "Restricted Zone Proximity Breach",
+          riskScore: 84,
+          severity: "High",
+          reason: "Crossed 15m safety buffer near Fort Aguada steep cliff edge.",
+          explanation: "Movement vector indicates stationary lingering 4 meters from unguarded drop-off after sunset.",
+          recommendation: "Dispatch nearest Tourist Police patrol and trigger haptic band alert.",
+          timestamp: "25 mins ago",
+          status: "Active"
+        },
+        {
+          id: "AI-773",
+          touristId: "SW-IND-2026-5088",
+          touristName: "Rohan Kulkarni",
+          type: "Unexpected Route Deviation",
+          riskScore: 76,
+          severity: "Medium",
+          reason: "2.4 km off registered Pune-Sinhagad corridor after dusk.",
+          explanation: "Tourist vehicle/foot path diverged from mapped highway onto unlit Khadakwasla backwater service road.",
+          recommendation: "Send SafeGuide automated wellness check and alert Pune Rural Patrol.",
+          timestamp: "49 mins ago",
+          status: "Active"
+        },
+        {
+          id: "AI-774",
+          touristId: "SW-GER-2026-4410",
+          touristName: "Lukas Weber",
+          type: "Sudden Prolonged Inactivity",
+          riskScore: 71,
+          severity: "Medium",
+          reason: "Zero step cadence & heart-rate elevation for 45 mins on Chapora hill trail.",
+          explanation: "Biometric telemetry from BAND-GW-105 shows stationary posture off main footpath with elevated pulse (118 bpm).",
+          recommendation: "Deploy Rapid Bike Unit to verify tourist condition.",
+          timestamp: "1 hr ago",
+          status: "Active"
+        },
+        {
+          id: "AI-775",
+          touristId: "SW-ITA-2026-6045",
+          touristName: "Matteo Conti",
+          type: "Unusual Erratic Movement Pattern",
+          riskScore: 63,
+          severity: "Low",
+          reason: "Circular pacing detected with low device battery (38%).",
+          explanation: "Trajectory analysis indicates possible disorientation around Ozran cliff trails.",
+          recommendation: "Push offline SafeZone navigation map to tourist device.",
+          timestamp: "2 hrs ago",
+          status: "Active"
+        }
+      ],
+      responseTeams: [
+        { id: "RT-01", name: "Alpha Coastal Rescue (Goa)", unitType: "Marine & Beach Patrol", status: "Busy", location: "Sinquerim / Calangute", lat: 15.5120, lng: 73.7610, members: 6, eta: "4 mins" },
+        { id: "RT-02", name: "Bravo Tourist Patrol", unitType: "Quick Response SUV", status: "Active", location: "Fort Aguada / Candolim", lat: 15.5025, lng: 73.7715, members: 4, eta: "6 mins" },
+        { id: "RT-03", name: "Charlie Sahyadri Unit (Pune)", unitType: "Hill & Trek Rescue", status: "Available", location: "Sinhagad Base, Pune", lat: 18.3750, lng: 73.7620, members: 5, eta: "12 mins" },
+        { id: "RT-04", name: "Delta Rapid Bike Unit", unitType: "All-Terrain Patrol", status: "Busy", location: "Anjuna / Chapora", lat: 15.5910, lng: 73.7420, members: 2, eta: "5 mins" },
+        { id: "RT-05", name: "Echo Medical Response", unitType: "Mobile ICU Ambulance", status: "Available", location: "Panjim Central Hub", lat: 15.4950, lng: 73.8220, members: 4, eta: "8 mins" }
+      ],
+      zones: [
+        { id: "GF-01", name: "Baga-Calangute Verified Tourist Corridor", type: "Safe", riskLevel: "Low", lat: 15.5500, lng: 73.7535, radius: 1100, description: "24/7 CCTV, Tourist Police booths, Lifeguard towers & high-speed emergency coverage." },
+        { id: "GF-02", name: "Fort Aguada Cliff & Sea Rocks", type: "Restricted", riskLevel: "Critical", lat: 15.4935, lng: 73.7715, radius: 650, description: "Steep unguarded cliff edges & dangerous high-tide currents. Entry strictly prohibited." },
+        { id: "GF-03", name: "Chapora-Ozran Late Night Trail", type: "Warning", riskLevel: "Moderate", lat: 15.6010, lng: 73.7350, radius: 850, description: "Uneven rocky terrain and low lighting after 19:00 IST. Travel in groups advised." },
+        { id: "GF-04", name: "Panjim Heritage & Riverfront Safe Zone", type: "Safe", riskLevel: "Low", lat: 15.4980, lng: 73.8280, radius: 1300, description: "Verified heritage hospitality district with active patrol and medical clinics." },
+        { id: "GF-05", name: "Sinhagad Fort Ridge & Pune Trek Zone", type: "Warning", riskLevel: "Moderate", lat: 18.3663, lng: 73.7559, radius: 1200, description: "Monsoon fog and steep valley edges. Stay within marked heritage stone pathways." }
+      ],
+      devices: [
+        { id: "BAND-GW-101", touristId: "SW-IND-2026-8492", touristName: "Aarav Sharma", battery: 88, connectivity: "LoRaWAN + 5G", heartRate: 76, location: "Baga Beach Promenade, Goa", status: "Online" },
+        { id: "BAND-GW-102", touristId: "SW-UK-2026-3104", touristName: "Elena Rostova", battery: 64, connectivity: "5G Mesh", heartRate: 104, location: "Fort Aguada Cliff Edge, Goa", status: "Warning" },
+        { id: "BAND-GW-103", touristId: "SW-USA-2026-5921", touristName: "Marcus Vance", battery: 41, connectivity: "Satellite SOS + LTE", heartRate: 136, location: "Sinquerim South Rocks, Goa", status: "SOS Triggered" },
+        { id: "BAND-PN-204", touristId: "SW-IND-2026-7741", touristName: "Priya Deshmukh", battery: 95, connectivity: "5G + GNSS", heartRate: 82, location: "Sinhagad Fort Ridge, Pune", status: "Online" },
+        { id: "BAND-GW-105", touristId: "SW-GER-2026-4410", touristName: "Lukas Weber", battery: 53, connectivity: "LoRaWAN", heartRate: 118, location: "Chapora Fort Trail, Goa", status: "Warning" }
+      ],
+      trips: [
+        { id: "TRP-401", touristId: "SW-IND-2026-8492", title: "North Goa Coastal & Heritage Expedition", destination: "Baga, Calangute & Old Goa", startDate: "2026-11-22", endDate: "2026-11-28", status: "Active", itinerary: "Day 1: Baga Promenade -> Day 2: Fort Aguada -> Day 3: Old Goa Churches -> Day 4: Panjim Riverfront", emergencyContact: "Meera Sharma (+91 98204 55121)" },
+        { id: "TRP-402", touristId: "SW-IND-2026-8492", title: "Western Ghats Monsoon & Fort Trail", destination: "Pune & Sinhagad Valley", startDate: "2026-12-10", endDate: "2026-12-14", status: "Upcoming", itinerary: "Sinhagad Fort Sunrise Trek, Khadakwasla Lakefront, Shaniwar Wada Heritage Walk", emergencyContact: "Meera Sharma (+91 98204 55121)" },
+        { id: "TRP-403", touristId: "SW-IND-2026-7741", title: "Sahyadri Ridge Trekking Circuit", destination: "Sinhagad & Mulshi, Pune", startDate: "2026-11-23", endDate: "2026-11-26", status: "Active", itinerary: "Base Village -> Kalyan Darwaza -> Wind Point -> Mulshi Eco Camp", emergencyContact: "Rajesh Deshmukh (+91 97654 11200)" }
+      ]
+    };
+
+    // =========================================================================
+    // 3. HELPER COMPONENTS (ICONS, QR CODE GENERATOR, LEAFLET INTERACTIVE MAP)
+    // =========================================================================
+    const Icon = ({ name, className = "w-5 h-5" }) => {
+      const ref = useRef(null);
+      useEffect(() => {
+        if (window.lucide && ref.current) {
+          ref.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+          window.lucide.createIcons({ root: ref.current });
+        }
+      }, [name, className]);
+      return <span ref={ref} className="inline-flex items-center justify-center shrink-0" />;
+    };
+
+    // Deterministic Crisp Vector QR Code Component
+    const TouristQRCode = ({ value, size = 148 }) => {
+      const matrix = useMemo(() => {
+        const grid = 21;
+        const cells = [];
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i++) {
+          hash ^= value.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        const isFinder = (r, c) => {
+          if (r < 7 && c < 7) return true;
+          if (r < 7 && c >= grid - 7) return true;
+          if (r >= grid - 7 && c < 7) return true;
+          return false;
+        };
+        const finderVal = (r, c) => {
+          const lr = r >= grid - 7 ? r - (grid - 7) : r;
+          const lc = c >= grid - 7 ? c - (grid - 7) : c;
+          if (lr === 0 || lr === 6 || lc === 0 || lc === 6) return 1;
+          if (lr >= 2 && lr <= 4 && lc >= 2 && lc <= 4) return 1;
+          return 0;
+        };
+        for (let r = 0; r < grid; r++) {
+          const row = [];
+          for (let c = 0; c < grid; c++) {
+            if (isFinder(r, c)) {
+              row.push(finderVal(r, c));
+            } else {
+              const seed = Math.abs(Math.sin(hash + r * 31 + c * 17) * 10000);
+              row.push(seed - Math.floor(seed) > 0.48 ? 1 : 0);
+            }
+          }
+          cells.push(row);
+        }
+        return cells;
+      }, [value]);
+
+      const cellSize = size / 21;
+      return (
+        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm inline-block">
+          <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+            <rect width={size} height={size} fill="#FFFFFF" />
+            {matrix.map((row, r) =>
+              row.map((val, c) =>
+                val ? (
+                  <rect
+                    key={`${r}-${c}`}
+                    x={c * cellSize}
+                    y={r * cellSize}
+                    width={cellSize + 0.3}
+                    height={cellSize + 0.3}
+                    fill="#0B1F3A"
+                    rx={cellSize * 0.15}
+                  />
+                ) : null
+              )
+            )}
+          </svg>
+        </div>
+      );
+    };
+
+    // Real Interactive Leaflet Map Component (Crisp Cartographic Light Theme)
+    const InteractiveSafetyMap = ({
+      center = [15.5350, 73.7650],
+      zoom = 12,
+      tourists = [],
+      zones = [],
+      incidents = [],
+      teams = [],
+      highlightTouristId = null,
+      heightClass = "h-[420px]",
+      showControls = true
+    }) => {
+      const mapContainerRef = useRef(null);
+      const mapInstanceRef = useRef(null);
+      const layerGroupRef = useRef(null);
+      const [regionFilter, setRegionFilter] = useState('goa');
+
+      useEffect(() => {
+        if (!mapContainerRef.current || !window.L || mapInstanceRef.current) return;
+
+        const map = window.L.map(mapContainerRef.current, {
+          center: center,
+          zoom: zoom,
+          zoomControl: true
+        });
+
+        window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          attribution: '&copy; OpenStreetMap &copy; CARTO | SAFEWAY GIS',
+          maxZoom: 19
+        }).addTo(map);
+
+        layerGroupRef.current = window.L.layerGroup().addTo(map);
+        mapInstanceRef.current = map;
+
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 250);
+
+        return () => {
+          map.remove();
+          mapInstanceRef.current = null;
+        };
+      }, []);
+
+      useEffect(() => {
+        if (!mapInstanceRef.current) return;
+        if (highlightTouristId) {
+          const t = tourists.find(item => item.id === highlightTouristId);
+          if (t) {
+            mapInstanceRef.current.setView([t.lat, t.lng], 13, { animate: true });
+          }
+        }
+      }, [highlightTouristId]);
+
+      const flyToRegion = (reg) => {
+        setRegionFilter(reg);
+        if (!mapInstanceRef.current) return;
+        if (reg === 'goa') {
+          mapInstanceRef.current.flyTo([15.5350, 73.7650], 12, { duration: 1.0 });
+        } else if (reg === 'pune') {
+          mapInstanceRef.current.flyTo([18.4250, 73.7850], 11, { duration: 1.0 });
+        }
+      };
+
+      // Render Markers & Geo-Fence Circles
+      useEffect(() => {
+        const L = window.L;
+        const map = mapInstanceRef.current;
+        const group = layerGroupRef.current;
+        if (!L || !map || !group) return;
+
+        group.clearLayers();
+
+        // 1. Geo-Fence Zones
+        zones.forEach(zone => {
+          const color =
+            zone.type === 'Safe' ? '#0D9488' :
+            zone.type === 'Restricted' ? '#DC2626' : '#D97706';
+
+          L.circle([zone.lat, zone.lng], {
+            radius: zone.radius || 800,
+            color: color,
+            fillColor: color,
+            fillOpacity: zone.type === 'Restricted' ? 0.2 : 0.12,
+            weight: 2,
+            dashArray: zone.type === 'Restricted' ? '6, 6' : null
+          })
+            .bindPopup(`
+              <div class="p-1 min-w-[210px]">
+                <div class="text-[11px] font-bold uppercase tracking-wider" style="color:${color}">${zone.type} ZONE • ${zone.riskLevel} Risk</div>
+                <div class="font-bold text-sm mt-0.5 text-slate-900">${zone.name}</div>
+                <div class="text-xs text-slate-600 mt-1">${zone.description || 'Monitored Geo-Fence Perimeter'}</div>
+              </div>
+            `)
+            .addTo(group);
+        });
+
+        // 2. Tourists
+        tourists.forEach(t => {
+          const isMe = t.id === highlightTouristId;
+          const color =
+            t.status === 'Emergency' ? '#DC2626' :
+            t.status === 'Caution' ? '#D97706' : '#0284C7';
+
+          const markerHtml = `
+            <div style="position:relative; width:${isMe ? 22 : 15}px; height:${isMe ? 22 : 15}px;">
+              ${(t.status === 'Emergency' || isMe) ? `<span style="position:absolute; inset:-6px; border-radius:9999px; background:${color}; opacity:0.35; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite;"></span>` : ''}
+              <div style="width:100%; height:100%; border-radius:9999px; background:${color}; border:2.5px solid #FFFFFF; box-shadow:0 2px 6px rgba(11,31,58,0.35);"></div>
+            </div>
+          `;
+
+          const icon = L.divIcon({
+            html: markerHtml,
+            className: 'custom-safeway-marker',
+            iconSize: [isMe ? 22 : 15, isMe ? 22 : 15],
+            iconAnchor: [isMe ? 11 : 7.5, isMe ? 11 : 7.5]
+          });
+
+          L.marker([t.lat, t.lng], { icon })
+            .bindPopup(`
+              <div class="p-1 min-w-[215px]">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[11px] font-mono font-semibold text-sky-700">${t.id}</span>
+                  <span class="px-1.5 py-0.5 text-[10px] font-bold rounded" style="background:${color}18; color:${color}">${t.status.toUpperCase()}</span>
+                </div>
+                <div class="font-bold text-sm text-slate-900 mt-1">${t.name} ${isMe ? '(You)' : ''}</div>
+                <div class="text-xs text-slate-600">${t.locationName}</div>
+                <div class="mt-2 pt-1.5 border-t border-slate-200 flex justify-between text-[11px] text-slate-500">
+                  <span>Safety Score: <strong class="text-slate-900">${t.safetyScore}/100</strong></span>
+                  <span>Battery: <strong class="text-slate-900">${t.battery}%</strong></span>
+                </div>
+              </div>
+            `)
+            .addTo(group);
+        });
+
+        // 3. Active Incidents
+        incidents.filter(i => i.status !== 'Resolved').forEach(inc => {
+          const icon = L.divIcon({
+            html: `
+              <div style="position:relative; width:26px; height:26px; display:flex; align-items:center; justify-content:center;">
+                <span style="position:absolute; inset:-4px; border-radius:9999px; background:#DC2626; opacity:0.35; animation: ping 1.4s infinite;"></span>
+                <div style="width:22px; height:22px; border-radius:6px; background:#DC2626; color:white; font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; border:2px solid #FFFFFF; box-shadow:0 2px 8px rgba(220,38,38,0.45);">!</div>
+              </div>
+            `,
+            className: 'custom-incident-marker',
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+          });
+
+          L.marker([inc.lat, inc.lng], { icon })
+            .bindPopup(`
+              <div class="p-1 min-w-[220px]">
+                <div class="text-[11px] font-bold text-red-600 uppercase">${inc.id} • ${inc.severity}</div>
+                <div class="font-bold text-sm text-slate-900 mt-0.5">${inc.type}</div>
+                <div class="text-xs text-slate-700 mt-0.5">Tourist: ${inc.touristName}</div>
+                <div class="text-xs text-slate-500 mt-0.5">${inc.location}</div>
+                <div class="mt-1.5 text-[11px] text-amber-700 font-semibold">Unit: ${inc.assignedTeam}</div>
+              </div>
+            `)
+            .addTo(group);
+        });
+
+        // 4. Response Teams
+        teams.forEach(team => {
+          const icon = L.divIcon({
+            html: `
+              <div style="width:24px; height:24px; border-radius:6px; background:#0B1F3A; border:2px solid #FFFFFF; color:#FFFFFF; font-weight:800; font-size:9px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(11,31,58,0.4);">
+                RT
+              </div>
+            `,
+            className: 'custom-team-marker',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
+
+          L.marker([team.lat, team.lng], { icon })
+            .bindPopup(`
+              <div class="p-1 min-w-[195px]">
+                <div class="text-[10px] font-mono font-bold text-sky-700">${team.id} • ${team.status.toUpperCase()}</div>
+                <div class="font-bold text-sm text-slate-900">${team.name}</div>
+                <div class="text-xs text-slate-600">${team.unitType} (${team.members} Personnel)</div>
+                <div class="text-[11px] text-teal-700 font-semibold mt-1">Sector: ${team.location}</div>
+              </div>
+            `)
+            .addTo(group);
+        });
+      }, [tourists, zones, incidents, teams, highlightTouristId]);
+
+      return (
+        <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shadow-gov">
+          {showControls && (
+            <div className="absolute top-3 right-3 z-[400] flex items-center gap-1 bg-white/95 backdrop-blur-md p-1 rounded-lg border border-slate-200 shadow-sm">
+              <button
+                onClick={() => flyToRegion('goa')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${regionFilter === 'goa' ? 'bg-gov-900 text-white' : 'text-slate-600 hover:text-gov-900 hover:bg-slate-100'}`}
+              >
+                Goa Sector
+              </button>
+              <button
+                onClick={() => flyToRegion('pune')}
+                className={`px-2.5 py-1 text-xs font-bold rounded-md transition ${regionFilter === 'pune' ? 'bg-gov-900 text-white' : 'text-slate-600 hover:text-gov-900 hover:bg-slate-100'}`}
+              >
+                Pune Sector
+              </button>
+            </div>
+          )}
+
+          <div ref={mapContainerRef} className={`w-full ${heightClass}`} />
+
+          {/* Clean Institutional Map Legend */}
+          <div className="bg-white border-t border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-600 ring-2 ring-sky-100"></span> Safe Tourist
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 ring-2 ring-amber-100"></span> Caution
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                <span className="w-3.5 h-3.5 rounded bg-red-600 text-[9px] font-bold text-white flex items-center justify-center">!</span> Active SOS / Incident
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                <span className="w-4 h-4 rounded bg-gov-900 text-[8px] font-bold text-white flex items-center justify-center">RT</span> Response Unit
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700 font-medium">
+                <span className="w-2.5 h-2.5 rounded-full border border-dashed border-red-600 bg-red-500/20"></span> Restricted Geo-Fence
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-500">DEMO TELEMETRY • GIS FEED</span>
+          </div>
+        </div>
+      );
+    };
+
+    // =========================================================================
+    // 4. MAIN APPLICATION CONTROLLER
+    // =========================================================================
+    function App() {
+      const [db, setDb] = useState(() => {
+        try {
+          const saved = localStorage.getItem('safeway_platform_v1');
+          if (saved) return JSON.parse(saved);
+        } catch (e) {
+          console.error(e);
+        }
+        return INITIAL_DATA;
+      });
+
+      useEffect(() => {
+        try {
+          localStorage.setItem('safeway_platform_v1', JSON.stringify(db));
+        } catch (e) {
+          console.error(e);
+        }
+      }, [db]);
+
+      const [view, setView] = useState('landing'); // 'landing' | 'login' | 'tourist' | 'authority'
+      const [touristTab, setTouristTab] = useState('dashboard');
+      const [authorityTab, setAuthorityTab] = useState('overview');
+      const [activeTouristId, setActiveTouristId] = useState('SW-IND-2026-8492');
+      const [lang, setLang] = useState('en');
+      const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+      const [toast, setToast] = useState(null);
+
+      const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+
+      const showToast = useCallback((title, message, type = 'info') => {
+        setToast({ title, message, type, id: Date.now() });
+      }, []);
+
+      useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 4500);
+        return () => clearTimeout(timer);
+      }, [toast]);
+
+      const resetDemoData = () => {
+        localStorage.removeItem('safeway_platform_v1');
+        setDb(INITIAL_DATA);
+        setActiveTouristId('SW-IND-2026-8492');
+        showToast('System Data Restored', 'All 20 tourists, incidents, AI alerts, and geo-fences reset to baseline.', 'success');
+      };
+
+      const currentTourist = useMemo(
+        () => db.tourists.find(item => item.id === activeTouristId) || db.tourists[0],
+        [db.tourists, activeTouristId]
+      );
+
+      const activeTouristIncident = useMemo(
+        () => db.incidents.find(inc => inc.touristId === currentTourist.id && inc.status !== 'Resolved'),
+        [db.incidents, currentTourist.id]
+      );
+
+      // =====================================================================
+      // CORE WORKFLOW ACTIONS (CONNECTED TOURIST <-> AUTHORITY)
+      // =====================================================================
+      const triggerTouristSOS = (customReason = "SOS Emergency", customTouristId = null) => {
+        const targetId = customTouristId || currentTourist.id;
+        const targetTourist = db.tourists.find(x => x.id === targetId) || currentTourist;
+
+        const existing = db.incidents.find(i => i.touristId === targetId && i.status !== 'Resolved' && i.type === customReason);
+        if (existing) {
+          showToast('SOS Already Active', `Incident ${existing.id} is currently active in Authority Command.`, 'warning');
+          return existing;
+        }
+
+        const newIncId = `INC-2026-${Math.floor(910 + Math.random() * 89)}`;
+        const newIncident = {
+          id: newIncId,
+          touristId: targetTourist.id,
+          touristName: targetTourist.name,
+          type: customReason,
+          severity: "Critical",
+          location: `${targetTourist.locationName} (${targetTourist.lat.toFixed(4)}, ${targetTourist.lng.toFixed(4)})`,
+          lat: targetTourist.lat,
+          lng: targetTourist.lng,
+          time: "Just now",
+          status: "New",
+          assignedTeam: "Alpha Coastal Rescue (Goa)",
+          notes: [
+            `[SIMULATED DEMO] ${customReason} triggered by ${targetTourist.name}.`,
+            `GPS Telemetry locked & Emergency Contact (${targetTourist.emergencyContact}) notified.`
+          ],
+          stage: 4
+        };
+
+        setDb(prev => ({
+          ...prev,
+          incidents: [newIncident, ...prev.incidents],
+          tourists: prev.tourists.map(item =>
+            item.id === targetTourist.id
+              ? { ...item, status: 'Emergency', safetyScore: Math.min(item.safetyScore, 28) }
+              : item
+          ),
+          devices: prev.devices.map(dev =>
+            dev.touristId === targetTourist.id
+              ? { ...dev, status: 'SOS Triggered', heartRate: 138 }
+              : dev
+          )
+        }));
+
+        showToast(
+          `EMERGENCY ALERT: ${newIncId}`,
+          `Simulated SOS activated for ${targetTourist.name}. Authority Command Centre notified immediately!`,
+          'error'
+        );
+        return newIncident;
+      };
+
+      const updateIncident = (incId, updates, newNote = null) => {
+        setDb(prev => {
+          const targetInc = prev.incidents.find(i => i.id === incId);
+          const updatedIncidents = prev.incidents.map(inc => {
+            if (inc.id !== incId) return inc;
+            const stageMap = {
+              'New': 3,
+              'Investigating': 4,
+              'Team Dispatched': 5,
+              'Resolved': 6
+            };
+            const nextStatus = updates.status || inc.status;
+            return {
+              ...inc,
+              ...updates,
+              stage: stageMap[nextStatus] || inc.stage,
+              notes: newNote ? [...inc.notes, newNote] : inc.notes
+            };
+          });
+
+          let updatedTourists = prev.tourists;
+          let updatedDevices = prev.devices;
+          if (updates.status === 'Resolved' && targetInc) {
+            updatedTourists = prev.tourists.map(tItem =>
+              tItem.id === targetInc.touristId
+                ? { ...tItem, status: 'Safe', safetyScore: 89 }
+                : tItem
+            );
+            updatedDevices = prev.devices.map(dItem =>
+              dItem.touristId === targetInc.touristId
+                ? { ...dItem, status: 'Online', heartRate: 78 }
+                : dItem
+            );
+          }
+
+          return {
+            ...prev,
+            incidents: updatedIncidents,
+            tourists: updatedTourists,
+            devices: updatedDevices
+          };
+        });
+
+        showToast('Incident Updated', `${incId} synchronized across Authority & Tourist dashboards.`, 'success');
+      };
+
+      const escalateAiAlert = (alertId) => {
+        const alertObj = db.aiAlerts.find(a => a.id === alertId);
+        if (!alertObj) return;
+        const touristObj = db.tourists.find(tItem => tItem.id === alertObj.touristId) || db.tourists[0];
+
+        const newIncId = `INC-2026-${Math.floor(920 + Math.random() * 79)}`;
+        const createdInc = {
+          id: newIncId,
+          touristId: touristObj.id,
+          touristName: touristObj.name,
+          type: alertObj.type.includes('Restricted') ? 'Restricted Zone Entry' : alertObj.type.includes('Inactivity') ? 'Inactivity' : 'Route Deviation',
+          severity: alertObj.severity,
+          location: touristObj.locationName,
+          lat: touristObj.lat,
+          lng: touristObj.lng,
+          time: "Just now",
+          status: "New",
+          assignedTeam: "Bravo Tourist Patrol",
+          notes: [`Escalated from AI Anomaly ${alertObj.id} (Risk Score: ${alertObj.riskScore}/100).`, alertObj.explanation],
+          stage: 4
+        };
+
+        setDb(prev => ({
+          ...prev,
+          aiAlerts: prev.aiAlerts.map(a => a.id === alertId ? { ...a, status: 'Escalated' } : a),
+          incidents: [createdInc, ...prev.incidents],
+          tourists: prev.tourists.map(tItem =>
+            tItem.id === touristObj.id && tItem.status === 'Safe'
+              ? { ...tItem, status: 'Caution', safetyScore: Math.max(45, tItem.safetyScore - 20) }
+              : tItem
+          )
+        }));
+
+        showToast('AI Alert Escalated', `Created Incident ${newIncId} in Incident Management.`, 'warning');
+      };
+
+      const dismissAiAlert = (alertId) => {
+        setDb(prev => ({
+          ...prev,
+          aiAlerts: prev.aiAlerts.filter(a => a.id !== alertId)
+        }));
+        showToast('Alert Dismissed', `Simulated AI anomaly ${alertId} archived.`, 'info');
+      };
+
+      const addGeoZone = (zoneObj) => {
+        const newZone = {
+          id: `GF-0${db.zones.length + 1}`,
+          ...zoneObj
+        };
+        setDb(prev => ({
+          ...prev,
+          zones: [newZone, ...prev.zones]
+        }));
+        showToast('Geo-Fence Deployed', `${newZone.name} (${newZone.type}) is now active on all maps.`, 'success');
+      };
+
+      const simulateZoneBreach = (zone) => {
+        const target = db.tourists[1]; // Elena Rostova
+        const newIncId = `INC-2026-${Math.floor(930 + Math.random() * 69)}`;
+        const breachInc = {
+          id: newIncId,
+          touristId: target.id,
+          touristName: target.name,
+          type: "Restricted Zone Entry",
+          severity: "High",
+          location: `${zone.name} Perimeter`,
+          lat: zone.lat,
+          lng: zone.lng,
+          time: "Just now",
+          status: "New",
+          assignedTeam: "Bravo Tourist Patrol",
+          notes: [`SIMULATED BREACH: Tourist entered ${zone.name} (${zone.type} Zone).`],
+          stage: 4
+        };
+
+        setDb(prev => ({
+          ...prev,
+          incidents: [breachInc, ...prev.incidents],
+          tourists: prev.tourists.map(item =>
+            item.id === target.id
+              ? { ...item, lat: zone.lat, lng: zone.lng, locationName: zone.name, status: 'Caution', safetyScore: 54 }
+              : item
+          )
+        }));
+
+        showToast('Geo-Fence Breach Alert!', `${target.name} entered ${zone.name}. Incident ${newIncId} generated.`, 'error');
+      };
+
+      const createTrip = (tripData) => {
+        const newTrip = {
+          id: `TRP-${Math.floor(500 + Math.random() * 499)}`,
+          touristId: currentTourist.id,
+          status: 'Active',
+          ...tripData
+        };
+        setDb(prev => ({
+          ...prev,
+          trips: [newTrip, ...prev.trips],
+          tourists: prev.tourists.map(item =>
+            item.id === currentTourist.id
+              ? { ...item, destination: tripData.destination, emergencyContact: tripData.emergencyContact }
+              : item
+          )
+        }));
+        showToast('Trip Registered', `${tripData.title} synced with SAFEWAY Safety Shield.`, 'success');
+      };
+
+      const toggleMonitoring = () => {
+        setDb(prev => ({
+          ...prev,
+          tourists: prev.tourists.map(item =>
+            item.id === currentTourist.id ? { ...item, monitoring: !item.monitoring } : item
+          )
+        }));
+        showToast(
+          !currentTourist.monitoring ? 'Live Tracking Enabled' : 'Tracking Paused',
+          !currentTourist.monitoring ? 'GPS & Geo-fence protection active.' : 'Location telemetry paused by user.',
+          'info'
+        );
+      };
+
+      // Shared Language Dropdown (Crisp Gov-Tech Input)
+      const LanguageSelector = () => (
+        <div className="relative inline-flex items-center">
+          <Icon name="globe" className="w-4 h-4 text-sky-700 mr-1.5" />
+          <select
+            aria-label="Select Language"
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            className="bg-white text-xs font-semibold text-gov-900 border border-slate-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-600 focus:ring-2 focus:ring-sky-500/20 cursor-pointer shadow-xs"
+          >
+            {LANGUAGES.map(l => (
+              <option key={l.code} value={l.code}>{l.native} ({l.label})</option>
+            ))}
+          </select>
+        </div>
+      );
+
+      return (
+        <div className="min-h-screen bg-gov-50 text-slate-900 font-sans relative">
+          {/* Global Notification Toast */}
+          {toast && (
+            <div className="fixed bottom-5 right-5 z-[9999] max-w-md w-full px-4 pointer-events-none">
+              <div className={`pointer-events-auto rounded-xl p-4 shadow-gov-lg border bg-white flex items-start gap-3 transition-all ${
+                toast.type === 'error' ? 'border-l-4 border-l-red-600 border-red-200' :
+                toast.type === 'warning' ? 'border-l-4 border-l-amber-600 border-amber-200' :
+                toast.type === 'success' ? 'border-l-4 border-l-teal-600 border-teal-200' :
+                'border-l-4 border-l-sky-600 border-slate-200'
+              }`}>
+                <Icon
+                  name={toast.type === 'error' ? 'alert-octagon' : toast.type === 'warning' ? 'alert-triangle' : 'shield-check'}
+                  className={`w-5 h-5 mt-0.5 ${
+                    toast.type === 'error' ? 'text-red-600' :
+                    toast.type === 'warning' ? 'text-amber-600' : 'text-teal-600'
+                  }`}
+                />
+                <div className="flex-1 text-sm">
+                  <div className="font-bold text-gov-900">{toast.title}</div>
+                  <div className="text-xs text-slate-600 mt-0.5">{toast.message}</div>
+                </div>
+                <button onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-700">
+                  <Icon name="x" className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW ROUTING */}
+          {view === 'landing' && (
+            <LandingPage
+              t={t}
+              db={db}
+              LanguageSelector={LanguageSelector}
+              onOpenLogin={() => setView('login')}
+              onEnterTourist={() => { setView('tourist'); setTouristTab('dashboard'); }}
+              onEnterAuthority={() => { setView('authority'); setAuthorityTab('overview'); }}
+            />
+          )}
+
+          {view === 'login' && (
+            <LoginRolePage
+              t={t}
+              tourists={db.tourists}
+              activeTouristId={activeTouristId}
+              setActiveTouristId={setActiveTouristId}
+              LanguageSelector={LanguageSelector}
+              onBackHome={() => setView('landing')}
+              onLoginTourist={() => { setView('tourist'); setTouristTab('dashboard'); }}
+              onLoginAuthority={() => { setView('authority'); setAuthorityTab('overview'); }}
+            />
+          )}
+
+          {view === 'tourist' && (
+            <TouristPortal
+              t={t}
+              db={db}
+              currentTourist={currentTourist}
+              activeTab={touristTab}
+              setActiveTab={setTouristTab}
+              activeIncident={activeTouristIncident}
+              onTriggerSOS={triggerTouristSOS}
+              onCreateTrip={createTrip}
+              onToggleMonitoring={toggleMonitoring}
+              LanguageSelector={LanguageSelector}
+              onSwitchRole={() => setView('login')}
+              onGoHome={() => setView('landing')}
+              onResetDemo={resetDemoData}
+              mobileSidebarOpen={mobileSidebarOpen}
+              setMobileSidebarOpen={setMobileSidebarOpen}
+            />
+          )}
+
+          {view === 'authority' && (
+            <AuthorityPortal
+              t={t}
+              db={db}
+              activeTab={authorityTab}
+              setActiveTab={setAuthorityTab}
+              onUpdateIncident={updateIncident}
+              onEscalateAi={escalateAiAlert}
+              onDismissAi={dismissAiAlert}
+              onAddZone={addGeoZone}
+              onSimulateBreach={simulateZoneBreach}
+              onTriggerBandSOS={(touristId) => triggerTouristSOS("Smart Band Physical SOS", touristId)}
+              LanguageSelector={LanguageSelector}
+              onSwitchRole={() => setView('login')}
+              onGoHome={() => setView('landing')}
+              onResetDemo={resetDemoData}
+              mobileSidebarOpen={mobileSidebarOpen}
+              setMobileSidebarOpen={setMobileSidebarOpen}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 5. LANDING PAGE COMPONENT (AUTHORITATIVE GOV-TECH DESIGN)
+    // =========================================================================
+    function LandingPage({ t, db, LanguageSelector, onOpenLogin, onEnterTourist, onEnterAuthority }) {
+      const activeEmergencies = db.incidents.filter(i => i.status !== 'Resolved').length;
+
+      return (
+        <div className="min-h-screen flex flex-col bg-white">
+          {/* Top Institutional Notice Bar */}
+          <div className="bg-gov-900 text-white py-2 px-4 text-xs border-b border-gov-800">
+            <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-medium">
+                <span className="inline-block w-2 h-2 rounded-full bg-teal-400"></span>
+                <span className="tracking-wide uppercase font-mono text-[11px] text-sky-200">National Smart Tourism & Public Safety Grid</span>
+              </div>
+              <div className="flex items-center gap-4 text-[11px] text-slate-300">
+                <span>24×7 Emergency Operations Demo</span>
+                <span className="hidden sm:inline">•</span>
+                <span className="hidden sm:inline font-mono text-teal-300">SECTOR: GOA & PUNE CIRCUITS</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Sticky Navigation Bar */}
+          <header className="sticky top-0 z-50 gov-header">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 py-3 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gov-900 flex items-center justify-center shadow-sm">
+                  <Icon name="shield-check" className="w-6 h-6 text-teal-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-extrabold tracking-tight text-gov-900">SAFE<span className="text-teal-600">WAY</span></span>
+                    <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-bold uppercase tracking-wider">GOV-TECH</span>
+                  </div>
+                  <span className="hidden sm:block text-[11px] font-medium text-slate-500">Tourist Safety & Incident Response</span>
+                </div>
+              </div>
+
+              <nav className="hidden lg:flex items-center gap-7 text-sm font-semibold text-slate-600">
+                <a href="#features" className="hover:text-gov-900 transition">Platform Capabilities</a>
+                <a href="#how-it-works" className="hover:text-gov-900 transition">Operational Workflow</a>
+                <a href="#ai-geofence" className="hover:text-gov-900 transition">AI & Geo-Fencing</a>
+                <a href="#digital-id" className="hover:text-gov-900 transition">Digital ID & SOS</a>
+              </nav>
+
+              <div className="flex items-center gap-2.5">
+                <LanguageSelector />
+                <button
+                  onClick={onOpenLogin}
+                  className="px-4 py-2 rounded-lg bg-gov-900 hover:bg-gov-800 text-white font-bold text-xs sm:text-sm transition shadow-sm flex items-center gap-1.5"
+                >
+                  <span>Portal Login</span>
+                  <Icon name="arrow-right" className="w-3.5 h-3.5 text-teal-400" />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Hero Section on Cool Alabaster Canvas */}
+          <section className="relative pt-12 pb-16 lg:pt-16 lg:pb-24 bg-gov-50 border-b border-slate-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+                <div className="lg:col-span-6 space-y-6">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 shadow-xs text-gov-900 text-xs font-bold">
+                    <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                    AI-Powered Tourist Protection & Emergency Response Platform
+                  </div>
+
+                  <h1 className="text-4xl sm:text-5xl lg:text-[54px] font-extrabold tracking-tight text-gov-900 leading-[1.12]">
+                    {t.tagline.split('.')[0]}.{' '}
+                    <span className="text-teal-600 block sm:inline">
+                      {t.tagline.split('.')[1] || 'Travel Safely.'}
+                    </span>
+                  </h1>
+
+                  <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
+                    SAFEWAY unifies real-time GPS telemetry, smart geo-fencing, verifiable Digital Tourist IDs, IoT wearable SOS bands, and a centralized Police & Tourism Command Centre into one authoritative safety infrastructure.
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3.5 pt-2">
+                    <button
+                      onClick={onEnterTourist}
+                      className="px-6 py-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm sm:text-base flex items-center gap-2 shadow-gov-md transition"
+                    >
+                      <Icon name="compass" className="w-5 h-5" />
+                      {t.startJourney}
+                    </button>
+
+                    <button
+                      onClick={onEnterAuthority}
+                      className="px-6 py-3.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold text-sm sm:text-base flex items-center gap-2 shadow-gov-md transition"
+                    >
+                      <Icon name="radar" className="w-5 h-5 text-sky-300" />
+                      {t.authorityDashboard}
+                    </button>
+                  </div>
+
+                  {/* Operational Trust Metrics */}
+                  <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-200">
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-gov-900">{db.tourists.length}</div>
+                      <div className="text-xs font-medium text-slate-500">Monitored Tourists</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-teal-600">&lt; 4.2m</div>
+                      <div className="text-xs font-medium text-slate-500">Avg Dispatch ETA</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-extrabold text-sky-700">10</div>
+                      <div className="text-xs font-medium text-slate-500">Regional Languages</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Cartographic Telemetry Preview Card */}
+                <div className="lg:col-span-6">
+                  <div className="gov-card rounded-2xl p-4 sm:p-5">
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-teal-600"></span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-gov-900">Live Sentinel Map — Goa & Pune Sectors</span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold">
+                        {activeEmergencies} Active Alerts
+                      </span>
+                    </div>
+
+                    <InteractiveSafetyMap
+                      tourists={db.tourists}
+                      zones={db.zones}
+                      incidents={db.incidents}
+                      teams={db.responseTeams}
+                      heightClass="h-[340px]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Platform Capabilities Section */}
+          <section id="features" className="py-16 lg:py-20 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center max-w-2xl mx-auto mb-12">
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full">
+                  End-to-End Protection Stack
+                </span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-gov-900 mt-3">
+                  Engineered for Public Safety & Rapid Response
+                </h2>
+                <p className="text-sm text-slate-600 mt-2">
+                  Built to empower tourism departments, law enforcement, and travelers with verifiable digital infrastructure.
+                </p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[
+                  { icon: 'qr-code', title: 'Digital Tourist ID', desc: 'Tamper-evident QR credential with verified trip itinerary, blood group, and instant emergency next-of-kin lookup.', accent: 'sky' },
+                  { icon: 'map-pin', title: 'Smart Geo-Fencing', desc: 'Dynamic Safe, Caution, and Restricted coastal/hill perimeters with automated boundary breach alerts.', accent: 'teal' },
+                  { icon: 'siren', title: 'One-Tap & IoT SOS', desc: '6-stage emergency pipeline linking Tourist App and LoRaWAN Smart Safety Bands directly to Police Command.', accent: 'red' },
+                  { icon: 'brain-circuit', title: 'AI Anomaly Sentinel', desc: 'Detects unexpected route deviations, sudden prolonged inactivity, and cliff/rip-current proximity risks.', accent: 'amber' },
+                  { icon: 'message-square-heart', title: 'SafeGuide AI Assistant', desc: 'Context-aware multilingual travel safety companion providing route checks, safe zones, and emergency translations.', accent: 'sky' },
+                  { icon: 'shield-alert', title: 'Authority Command Centre', desc: 'Centralized tactical map, response unit dispatch, live incident investigation logs, and operational analytics.', accent: 'navy' }
+                ].map((f, idx) => (
+                  <div key={idx} className="gov-card rounded-2xl p-6 hover:shadow-gov-md hover:border-slate-300 transition group">
+                    <div className={`w-12 h-12 rounded-xl mb-4 flex items-center justify-center border ${
+                      f.accent === 'red' ? 'bg-red-50 border-red-200 text-red-600' :
+                      f.accent === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                      f.accent === 'teal' ? 'bg-teal-50 border-teal-200 text-teal-700' :
+                      f.accent === 'navy' ? 'bg-gov-100 border-slate-300 text-gov-900' :
+                      'bg-sky-50 border-sky-200 text-sky-700'
+                    }`}>
+                      <Icon name={f.icon} className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gov-900 group-hover:text-teal-700 transition">{f.title}</h3>
+                    <p className="text-sm text-slate-600 mt-2 leading-relaxed">{f.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* How It Works Section */}
+          <section id="how-it-works" className="py-16 bg-gov-50 border-y border-slate-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center max-w-2xl mx-auto mb-12">
+                <span className="text-xs font-mono font-bold uppercase tracking-widest text-sky-700">Closed-Loop Architecture</span>
+                <h2 className="text-3xl font-extrabold text-gov-900 mt-2">How SAFEWAY Protects Every Journey</h2>
+              </div>
+
+              <div className="grid md:grid-cols-4 gap-6">
+                {[
+                  { step: '01', title: 'Register & Verify ID', desc: 'Tourist generates a verified Digital Tourist ID & links optional Smart Safety Band.' },
+                  { step: '02', title: 'AI & Geo-Fence Shield', desc: 'Real-time telemetry checks route alignment and proximity to restricted coastal or trek zones.' },
+                  { step: '03', title: 'Instant SOS / Anomaly Alert', desc: 'Manual SOS, band button, or AI anomaly creates a high-priority ticket with exact coordinates.' },
+                  { step: '04', title: 'Coordinated Dispatch', desc: 'Authority Command dispatches nearest rescue unit and updates the tourist in real time.' }
+                ].map((s, i) => (
+                  <div key={i} className="gov-card rounded-2xl p-6 relative">
+                    <div className="inline-flex items-center justify-center px-2.5 py-1 rounded-md bg-gov-900 text-white text-xs font-mono font-bold mb-4">
+                      STEP {s.step}
+                    </div>
+                    <h3 className="text-base font-bold text-gov-900">{s.title}</h3>
+                    <p className="text-xs text-slate-600 mt-2 leading-relaxed">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* AI Safety, Geo-Fencing, SOS & Digital ID Showcase */}
+          <section id="ai-geofence" className="py-16 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="grid lg:grid-cols-2 gap-8">
+                {/* AI Safety & Geo-Fencing Card */}
+                <div className="gov-card rounded-2xl p-8 space-y-5 border-t-4 border-t-teal-600">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
+                    <Icon name="cpu" className="w-4 h-4 text-amber-600" /> Proactive AI & Geo-Fencing
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-gov-900">Predicts Danger Before It Escalates</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Our simulated Neural Sentinel continuously evaluates movement vectors, elevation drops, inactivity duration, and geo-fence perimeters—explaining every risk score in clear language for rapid police triage.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                      <div className="text-xs font-bold text-emerald-800">Safe Zones</div>
+                      <div className="text-[11px] text-emerald-700 mt-1">Patrolled hubs & beaches</div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
+                      <div className="text-xs font-bold text-amber-800">Caution Zones</div>
+                      <div className="text-[11px] text-amber-700 mt-1">Low-light trails & ghats</div>
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-red-50 border border-red-200">
+                      <div className="text-xs font-bold text-red-800">Restricted Zones</div>
+                      <div className="text-[11px] text-red-700 mt-1">Cliffs & rip currents</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Digital ID & Emergency SOS Card */}
+                <div id="digital-id" className="gov-card rounded-2xl p-8 space-y-5 border-t-4 border-t-gov-900">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                    <Icon name="siren" className="w-4 h-4 text-red-600" /> 6-Stage SOS & Digital Tourist ID
+                  </div>
+                  <h3 className="text-2xl font-extrabold text-gov-900">Zero-Latency Emergency Response</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Every tourist carries a verifiable Digital ID with blood group, emergency contacts, and itinerary. Triggering SOS broadcasts live coordinates to family and dispatches the nearest coastal, hill, or medical unit.
+                  </p>
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <button onClick={onEnterTourist} className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition shadow-sm">
+                      Explore Tourist App Demo
+                    </button>
+                    <button onClick={onEnterAuthority} className="px-5 py-2.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold text-xs transition shadow-sm">
+                      Open Police Command Centre
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Authoritative Navy Footer */}
+          <footer className="mt-auto bg-gov-900 text-white py-10 border-t border-gov-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-gov-800 border border-gov-700 flex items-center justify-center text-teal-400">
+                  <Icon name="shield-check" className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">SAFEWAY — Smart Tourist Safety Monitoring & Incident Response System</div>
+                  <div className="text-xs text-slate-300">Government & Hackathon Demonstration Platform • Simulated Telemetry Data</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-5 text-xs font-semibold text-sky-200">
+                <button onClick={onEnterTourist} className="hover:text-white transition">Tourist Portal</button>
+                <button onClick={onEnterAuthority} className="hover:text-white transition">Authority Command</button>
+                <button onClick={onOpenLogin} className="hover:text-white transition">Portal Switcher</button>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 6. LOGIN & ROLE SELECTION PORTAL
+    // =========================================================================
+    function LoginRolePage({ t, tourists, activeTouristId, setActiveTouristId, LanguageSelector, onBackHome, onLoginTourist, onLoginAuthority }) {
+      return (
+        <div className="min-h-screen flex flex-col bg-gov-50">
+          <header className="gov-header h-16 px-4 sm:px-8 flex items-center justify-between">
+            <button onClick={onBackHome} className="flex items-center gap-2.5 text-left">
+              <div className="w-9 h-9 rounded-xl bg-gov-900 flex items-center justify-center">
+                <Icon name="shield-check" className="w-5 h-5 text-teal-400" />
+              </div>
+              <span className="text-lg font-extrabold text-gov-900">SAFE<span className="text-teal-600">WAY</span></span>
+            </button>
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
+              <button onClick={onBackHome} className="text-xs font-semibold text-slate-600 hover:text-gov-900 flex items-center gap-1">
+                <Icon name="arrow-left" className="w-4 h-4" /> {t.home}
+              </button>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-12 flex flex-col justify-center">
+            <div className="text-center mb-10">
+              <span className="px-3.5 py-1 rounded-full bg-white border border-slate-200 text-gov-900 text-xs font-mono font-bold uppercase shadow-2xs">
+                Instant Interactive Demo Access • No Password Required
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-gov-900 mt-3">Select Your SAFEWAY Portal</h1>
+              <p className="text-sm text-slate-600 mt-2 max-w-xl mx-auto">
+                Experience the connected safety workflow: trigger an SOS or register a trip in the Tourist Portal, then switch to the Authority Command Centre to dispatch units in real time.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Tourist Login Card */}
+              <div className="gov-card rounded-2xl p-8 border-t-4 border-t-teal-600 flex flex-col justify-between hover:shadow-gov-lg transition">
+                <div>
+                  <div className="w-14 h-14 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700 mb-6">
+                    <Icon name="user-check" className="w-7 h-7" />
+                  </div>
+                  <div className="text-xs font-mono font-bold uppercase text-teal-700">Citizen & Traveler Portal</div>
+                  <h2 className="text-2xl font-extrabold text-gov-900 mt-1">{t.touristPortal}</h2>
+                  <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                    Access your verifiable Digital Tourist ID with QR code, live safety score, interactive safe-zone map, SafeGuide AI assistant, and 1-tap emergency SOS trigger.
+                  </p>
+
+                  <div className="mt-6">
+                    <label className="block text-xs font-bold text-slate-700 mb-2">Select Demo Tourist Profile:</label>
+                    <select
+                      value={activeTouristId}
+                      onChange={(e) => setActiveTouristId(e.target.value)}
+                      className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gov-900 focus:outline-none focus:border-teal-600"
+                    >
+                      {tourists.map(tr => (
+                        <option key={tr.id} value={tr.id}>
+                          {tr.name} ({tr.nationality}) — {tr.status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  onClick={onLoginTourist}
+                  className="mt-8 w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
+                >
+                  Enter Tourist Demo <Icon name="arrow-right" className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Authority Login Card */}
+              <div className="gov-card rounded-2xl p-8 border-t-4 border-t-gov-900 flex flex-col justify-between hover:shadow-gov-lg transition">
+                <div>
+                  <div className="w-14 h-14 rounded-2xl bg-gov-100 border border-slate-300 flex items-center justify-center text-gov-900 mb-6">
+                    <Icon name="shield" className="w-7 h-7" />
+                  </div>
+                  <div className="text-xs font-mono font-bold uppercase text-sky-700">Tourism Police & Emergency Ops</div>
+                  <h2 className="text-2xl font-extrabold text-gov-900 mt-1">{t.commandCentre}</h2>
+                  <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                    Monitor all 20 active tourists, manage live SOS incidents, dispatch rescue teams, review AI anomaly detections, configure geo-fences, and test Smart IoT bands.
+                  </p>
+
+                  <div className="mt-6 p-4 rounded-xl bg-gov-50 border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Clearance Role:</span>
+                      <span className="font-mono text-gov-900 font-bold">SUPERVISOR • SECTOR GOA-PUNE</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Command Jurisdiction:</span>
+                      <span className="text-slate-800 font-semibold">Tourism Police & Coastal Rescue</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={onLoginAuthority}
+                  className="mt-8 w-full py-3.5 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
+                >
+                  Enter Command Centre <Icon name="radar" className="w-4 h-4 text-sky-300" />
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 7. TOURIST PORTAL (CLEAN LIGHT GOV-TECH WORKSPACE)
+    // =========================================================================
+    function TouristPortal({
+      t, db, currentTourist, activeTab, setActiveTab, activeIncident,
+      onTriggerSOS, onCreateTrip, onToggleMonitoring,
+      LanguageSelector, onSwitchRole, onGoHome, onResetDemo,
+      mobileSidebarOpen, setMobileSidebarOpen
+    }) {
+      const navItems = [
+        { id: 'dashboard', label: t.dashboard, icon: 'layout-dashboard' },
+        { id: 'id', label: t.digitalId, icon: 'qr-code' },
+        { id: 'sos', label: t.sosEmergency, icon: 'siren', badge: activeIncident ? 'ACTIVE' : null },
+        { id: 'trips', label: t.myTrips, icon: 'map' },
+        { id: 'safeguide', label: t.safeGuide, icon: 'bot' }
+      ];
+
+      return (
+        <div className="min-h-screen flex bg-gov-50">
+          {mobileSidebarOpen && (
+            <div onClick={() => setMobileSidebarOpen(false)} className="fixed inset-0 bg-gov-950/40 z-40 lg:hidden no-print" />
+          )}
+
+          {/* Crisp White Sidebar */}
+          <aside className={`no-print fixed lg:static inset-y-0 left-0 z-50 w-68 bg-white border-r border-slate-200 flex flex-col transition-transform duration-200 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+            <div className="h-16 px-5 flex items-center justify-between border-b border-slate-200">
+              <button onClick={onGoHome} className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gov-900 flex items-center justify-center">
+                  <Icon name="shield-check" className="w-5 h-5 text-teal-400" />
+                </div>
+                <div className="text-left">
+                  <div className="text-base font-extrabold text-gov-900">SAFE<span className="text-teal-600">WAY</span></div>
+                  <div className="text-[10px] font-mono font-bold text-teal-700 uppercase">{t.touristPortal}</div>
+                </div>
+              </button>
+              <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden text-slate-500">
+                <Icon name="x" className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Tourist Profile Summary Card */}
+            <div className="p-4 m-3 rounded-xl bg-gov-50 border border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gov-900 text-white font-bold flex items-center justify-center text-sm">
+                  {currentTourist.name.split(' ').map(n => n[0]).join('')}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-gov-900 truncate">{currentTourist.name}</div>
+                  <div className="text-[11px] font-mono text-sky-700 truncate">{currentTourist.id}</div>
+                </div>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs">
+                <span className="text-slate-500 font-medium">Status</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                  currentTourist.status === 'Emergency' ? 'bg-red-50 text-red-700 border-red-200' :
+                  currentTourist.status === 'Caution' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {currentTourist.status === 'Emergency' ? t.emergencyStatus : currentTourist.status === 'Caution' ? t.cautionStatus : t.safeStatus}
+                </span>
+              </div>
+            </div>
+
+            <nav className="flex-1 px-3 space-y-1">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setActiveTab(item.id); setMobileSidebarOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                    activeTab === item.id
+                      ? 'bg-gov-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-gov-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Icon name={item.icon} className={`w-4 h-4 ${item.id === 'sos' ? (activeTab === item.id ? 'text-red-300' : 'text-red-600') : activeTab === item.id ? 'text-teal-400' : 'text-slate-500'}`} />
+                    {item.label}
+                  </span>
+                  {item.badge && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-600 text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            {/* Quick SOS Sidebar Trigger */}
+            <div className="p-4 border-t border-slate-200 space-y-2.5">
+              <button
+                onClick={() => setActiveTab('sos')}
+                className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs tracking-wide flex items-center justify-center gap-2 shadow-sm transition"
+              >
+                <Icon name="siren" className="w-4 h-4" />
+                {activeIncident ? t.sosActive : t.triggerSos}
+              </button>
+
+              <button
+                onClick={onSwitchRole}
+                className="w-full py-2 rounded-xl bg-white hover:bg-slate-50 text-gov-900 text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-300"
+              >
+                <Icon name="repeat" className="w-3.5 h-3.5 text-teal-600" /> {t.switchRole}
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Top Bar */}
+            <header className="no-print sticky top-0 z-30 gov-header h-16 px-4 sm:px-6 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-lg bg-slate-100 text-gov-900">
+                  <Icon name="menu" className="w-5 h-5" />
+                </button>
+                <div>
+                  <h1 className="text-sm sm:text-base font-extrabold text-gov-900">{t.welcomeBack}, {currentTourist.name.split(' ')[0]}</h1>
+                  <div className="text-[11px] text-teal-700 font-medium flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                    {t.liveMonitoring} • {currentTourist.locationName}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <LanguageSelector />
+                <button
+                  onClick={() => setActiveTab('sos')}
+                  className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-xs"
+                >
+                  <Icon name="siren" className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">SOS</span>
+                </button>
+                <button
+                  onClick={onResetDemo}
+                  title="Reset Demo Data"
+                  className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 hover:text-gov-900 border border-slate-300"
+                >
+                  <Icon name="rotate-ccw" className="w-4 h-4" />
+                </button>
+              </div>
+            </header>
+
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+              {activeTab === 'dashboard' && (
+                <TouristDashboardView
+                  t={t}
+                  db={db}
+                  currentTourist={currentTourist}
+                  activeIncident={activeIncident}
+                  onNavigate={setActiveTab}
+                  onTriggerSOS={onTriggerSOS}
+                />
+              )}
+              {activeTab === 'id' && (
+                <DigitalTouristIDView currentTourist={currentTourist} />
+              )}
+              {activeTab === 'sos' && (
+                <TouristSOSView
+                  t={t}
+                  currentTourist={currentTourist}
+                  activeIncident={activeIncident}
+                  onTriggerSOS={onTriggerSOS}
+                />
+              )}
+              {activeTab === 'trips' && (
+                <TouristTripsView
+                  db={db}
+                  currentTourist={currentTourist}
+                  onCreateTrip={onCreateTrip}
+                  onToggleMonitoring={onToggleMonitoring}
+                />
+              )}
+              {activeTab === 'safeguide' && (
+                <SafeGuideAIView currentTourist={currentTourist} db={db} />
+              )}
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    // 7A. Tourist Dashboard Sub-View
+    function TouristDashboardView({ t, db, currentTourist, activeIncident, onNavigate }) {
+      const myTrips = db.trips.filter(tr => tr.touristId === currentTourist.id);
+      const activeTrip = myTrips[0] || db.trips[0];
+
+      return (
+        <div className="space-y-6">
+          {/* Active Emergency Banner if SOS triggered */}
+          {activeIncident && (
+            <div className="rounded-xl p-4 bg-red-50 border border-red-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center">
+                  <Icon name="siren" className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="text-xs font-mono font-bold text-red-700 uppercase">Simulated SOS Active • {activeIncident.id}</div>
+                  <div className="text-sm font-bold text-gov-900">Status: {activeIncident.status} — Assigned Unit: {activeIncident.assignedTeam}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => onNavigate('sos')}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-xs"
+              >
+                Track Live Rescue Timeline
+              </button>
+            </div>
+          )}
+
+          {/* Top 4 KPI / Status Cards */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Safety Score Gauge Card */}
+            <div className="gov-card rounded-xl p-5 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-slate-500 font-semibold">{t.safetyScore}</div>
+                <div className="text-3xl font-extrabold text-gov-900 mt-1">
+                  {currentTourist.safetyScore}<span className="text-sm text-slate-400 font-medium">/100</span>
+                </div>
+                <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                  <Icon name="shield-check" className="w-3.5 h-3.5" /> High Protection Zone
+                </div>
+              </div>
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E2E8F0" strokeWidth="3.5" />
+                  <path
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke={currentTourist.safetyScore > 75 ? '#0D9488' : currentTourist.safetyScore > 45 ? '#D97706' : '#DC2626'}
+                    strokeWidth="3.5"
+                    strokeDasharray={`${currentTourist.safetyScore}, 100`}
+                  />
+                </svg>
+                <span className="absolute text-xs font-extrabold text-gov-900">{currentTourist.safetyScore}%</span>
+              </div>
+            </div>
+
+            {/* Digital Tourist ID Mini Card */}
+            <div onClick={() => onNavigate('id')} className="gov-card rounded-xl p-5 cursor-pointer hover:border-teal-500 transition">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-semibold">{t.digitalId}</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">VERIFIED</span>
+              </div>
+              <div className="text-base font-mono font-bold text-gov-900 mt-2">{currentTourist.id}</div>
+              <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+                <span>Exp: {currentTourist.expiry}</span>
+                <span className="text-teal-700 font-bold flex items-center gap-1">View QR <Icon name="arrow-up-right" className="w-3.5 h-3.5" /></span>
+              </div>
+            </div>
+
+            {/* Current Active Trip */}
+            <div onClick={() => onNavigate('trips')} className="gov-card rounded-xl p-5 cursor-pointer hover:border-sky-500 transition">
+              <div className="text-xs text-slate-500 font-semibold">Current Trip</div>
+              <div className="text-sm font-bold text-gov-900 mt-1.5 truncate">{activeTrip.title}</div>
+              <div className="text-xs text-slate-600 mt-1 truncate">{activeTrip.destination}</div>
+              <div className="text-[11px] text-sky-700 mt-1.5 font-mono font-semibold">{activeTrip.startDate} → {activeTrip.endDate}</div>
+            </div>
+
+            {/* Smart Band / Device Telemetry */}
+            <div className="gov-card rounded-xl p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-semibold">Device Telemetry</span>
+                <Icon name="watch" className="w-4 h-4 text-sky-700" />
+              </div>
+              <div className="text-base font-bold text-gov-900 mt-1.5">{currentTourist.deviceId || 'Mobile App GPS'}</div>
+              <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
+                <span>Battery: <strong className="text-emerald-700">{currentTourist.battery}%</strong></span>
+                <span>GPS: <strong className="text-sky-700">{currentTourist.monitoring ? 'Locked' : 'Paused'}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Grid: Interactive Safety Map + Alerts & Recommendations */}
+          <div className="grid lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-extrabold text-gov-900 flex items-center gap-2">
+                  <Icon name="map-pin" className="w-4 h-4 text-teal-600" /> Live Geo-Fence & Safe Zone Radar
+                </h2>
+                <span className="text-xs font-medium text-slate-500">Showing Safe, Caution & Restricted Zones</span>
+              </div>
+              <InteractiveSafetyMap
+                center={[currentTourist.lat, currentTourist.lng]}
+                zoom={13}
+                tourists={db.tourists}
+                zones={db.zones}
+                incidents={db.incidents}
+                teams={db.responseTeams}
+                highlightTouristId={currentTourist.id}
+                heightClass="h-[395px]"
+              />
+            </div>
+
+            <div className="lg:col-span-4 space-y-5">
+              {/* Quick Actions */}
+              <div className="gov-card rounded-xl p-5 space-y-3">
+                <h3 className="text-sm font-extrabold text-gov-900">Quick Safety Actions</h3>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    onClick={() => onNavigate('sos')}
+                    className="p-3 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-left transition"
+                  >
+                    <Icon name="siren" className="w-5 h-5 text-red-600 mb-1.5" />
+                    <div className="text-xs font-bold text-red-900">Emergency SOS</div>
+                    <div className="text-[10px] text-red-700">Instant Dispatch</div>
+                  </button>
+                  <button
+                    onClick={() => onNavigate('safeguide')}
+                    className="p-3 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-left transition"
+                  >
+                    <Icon name="bot" className="w-5 h-5 text-sky-700 mb-1.5" />
+                    <div className="text-xs font-bold text-gov-900">Ask SafeGuide</div>
+                    <div className="text-[10px] text-sky-700">AI Route Check</div>
+                  </button>
+                  <button
+                    onClick={() => onNavigate('id')}
+                    className="p-3 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-left transition"
+                  >
+                    <Icon name="qr-code" className="w-5 h-5 text-teal-700 mb-1.5" />
+                    <div className="text-xs font-bold text-gov-900">Show Digital ID</div>
+                    <div className="text-[10px] text-teal-700">Police Checkpoint</div>
+                  </button>
+                  <button
+                    onClick={() => onNavigate('trips')}
+                    className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left transition"
+                  >
+                    <Icon name="plus-circle" className="w-5 h-5 text-gov-900 mb-1.5" />
+                    <div className="text-xs font-bold text-gov-900">Plan New Trip</div>
+                    <div className="text-[10px] text-slate-600">Log Itinerary</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div className="gov-card rounded-xl p-5">
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Primary Emergency Contact</div>
+                <div className="text-sm font-bold text-gov-900 mt-1.5">{currentTourist.emergencyContact}</div>
+                <div className="text-xs text-emerald-700 font-semibold mt-1 flex items-center gap-1">
+                  <Icon name="check-circle-2" className="w-3.5 h-3.5" /> Auto-notified upon SOS activation
+                </div>
+              </div>
+
+              {/* AI Safety Recommendations */}
+              <div className="gov-card rounded-xl p-5 space-y-3">
+                <h3 className="text-sm font-extrabold text-gov-900 flex items-center gap-2">
+                  <Icon name="sparkles" className="w-4 h-4 text-amber-600" /> Official Safety Advisories
+                </h3>
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                    <strong>Coastal Tide Advisory:</strong> High tide expected after 18:30 IST near Fort Aguada & Sinquerim rocks. Stay inside Safe Zone GF-01.
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
+                    <strong>Verified Corridor:</strong> Baga-Calangute Tourist Police Booth #4 is 350m from your current GPS coordinate.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 7B. Digital Tourist ID Page (Official Government Travel Credential Design)
+    function DigitalTouristIDView({ currentTourist }) {
+      const [verifying, setVerifying] = useState(false);
+      const [verifiedTimestamp, setVerifiedTimestamp] = useState("Verified on SAFEWAY Registry • Active");
+
+      const runVerification = () => {
+        setVerifying(true);
+        setTimeout(() => {
+          setVerifying(false);
+          setVerifiedTimestamp(`Cryptographic Signature Verified • ${new Date().toLocaleTimeString()}`);
+        }, 600);
+      };
+
+      return (
+        <div className="max-w-3xl mx-auto space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
+            <div>
+              <h2 className="text-2xl font-extrabold text-gov-900">Official Digital Tourist Identity Card</h2>
+              <p className="text-xs text-slate-600 mt-0.5">Government-Tech Demonstration Credential • Present at checkpoints, hotels & emergency responders</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={runVerification}
+                className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs"
+              >
+                <Icon name="refresh-cw" className={`w-3.5 h-3.5 ${verifying ? 'animate-spin' : ''}`} />
+                Verify Signature
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-gov-900 text-xs font-bold flex items-center gap-1.5"
+              >
+                <Icon name="printer" className="w-3.5 h-3.5" /> Print Pass
+              </button>
+            </div>
+          </div>
+
+          {/* Official Government Credential Card */}
+          <div className="credential-card rounded-2xl border-2 border-gov-900 shadow-gov-lg">
+            {/* Deep Navy Official Header Band */}
+            <div className="bg-gov-900 text-white px-6 sm:px-8 py-5 flex flex-wrap items-center justify-between gap-4 border-b-4 border-teal-500">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-white text-gov-900 flex items-center justify-center font-extrabold shadow-xs">
+                  <Icon name="shield-check" className="w-6 h-6 text-teal-600" />
+                </div>
+                <div>
+                  <div className="text-lg font-extrabold tracking-wide text-white">SAFEWAY <span className="text-teal-400">TOURIST CREDENTIAL</span></div>
+                  <div className="text-[11px] font-mono text-sky-200 uppercase">National Smart Tourism & Public Safety Grid (Demo)</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 text-xs font-bold">
+                <Icon name="badge-check" className="w-4 h-4 text-emerald-300" />
+                {currentTourist.verified ? 'KYC & PASSPORT VERIFIED' : 'PENDING VERIFICATION'}
+              </div>
+            </div>
+
+            {/* Credential Body */}
+            <div className="p-6 sm:p-8 grid md:grid-cols-12 gap-8 items-center">
+              <div className="md:col-span-7 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-gov-900 text-white text-xl font-extrabold flex items-center justify-center shrink-0 border-2 border-teal-500">
+                    {currentTourist.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase font-mono font-bold">Full Legal Name</div>
+                    <div className="text-2xl font-extrabold text-gov-900">{currentTourist.name}</div>
+                    <div className="text-xs text-slate-700 font-semibold mt-0.5">
+                      {currentTourist.nationality} • Age {currentTourist.age} • Blood Group: <strong className="text-red-600">{currentTourist.bloodGroup}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3.5 pt-2">
+                  <div className="p-3 rounded-xl bg-gov-50 border border-slate-200">
+                    <div className="text-[10px] font-mono font-bold uppercase text-slate-500">Unique Tourist ID</div>
+                    <div className="text-sm font-mono font-extrabold text-gov-900 mt-0.5">{currentTourist.id}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gov-50 border border-slate-200">
+                    <div className="text-[10px] font-mono font-bold uppercase text-slate-500">Valid Until</div>
+                    <div className="text-sm font-mono font-extrabold text-gov-900 mt-0.5">{currentTourist.expiry}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-gov-50 border border-slate-200 col-span-2">
+                    <div className="text-[10px] font-mono font-bold uppercase text-slate-500">Authorized Itinerary Region</div>
+                    <div className="text-sm font-bold text-gov-900 mt-0.5">{currentTourist.destination}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 col-span-2">
+                    <div className="text-[10px] font-mono font-bold uppercase text-amber-800">Emergency Next-of-Kin</div>
+                    <div className="text-sm font-bold text-gov-900 mt-0.5">{currentTourist.emergencyContact}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scannable QR Code Column */}
+              <div className="md:col-span-5 flex flex-col items-center justify-center text-center p-5 rounded-2xl bg-gov-50 border border-slate-200">
+                <TouristQRCode value={`SAFEWAY|${currentTourist.id}|${currentTourist.name}|${currentTourist.expiry}`} size={160} />
+                <div className="text-[11px] font-mono font-bold text-gov-900 mt-3">{currentTourist.id}</div>
+                <div className="text-[11px] font-semibold text-emerald-700 mt-1 flex items-center gap-1">
+                  <Icon name="check-circle-2" className="w-3.5 h-3.5" /> {verifiedTimestamp}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 7C. Live SOS Emergency System Page
+    function TouristSOSView({ currentTourist, activeIncident, onTriggerSOS }) {
+      const [confirmStep, setConfirmStep] = useState(false);
+      const [sosReason, setSosReason] = useState("SOS Emergency");
+
+      const stages = [
+        { num: 1, title: "SOS Activated", desc: "Emergency distress beacon initiated by tourist." },
+        { num: 2, title: "Location Captured", desc: `High-accuracy GPS locked (${currentTourist.lat.toFixed(4)}, ${currentTourist.lng.toFixed(4)}).` },
+        { num: 3, title: "Emergency Contacts Notified", desc: `Automated SMS & live tracking link sent to ${currentTourist.emergencyContact}.` },
+        { num: 4, title: "Authority Alert Generated", desc: "High-priority incident dispatched to SAFEWAY Command Centre." },
+        { num: 5, title: "Response Team Assigned", desc: activeIncident ? `Unit: ${activeIncident.assignedTeam}` : "Nearest Coastal/Hill patrol unit assigned." },
+        { num: 6, title: "Incident Resolved", desc: "Tourist confirmed safe and incident closed by supervisor." }
+      ];
+
+      const currentStage = activeIncident ? activeIncident.stage : 0;
+
+      return (
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Clear Simulation Notice */}
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-3">
+            <Icon name="info" className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>
+              <strong>SIMULATED EMERGENCY SYSTEM (DEMO):</strong> Activating SOS creates a live emergency incident inside this platform's Authority Command Centre for demonstration purposes. Actual police or 112/911 dispatch is not contacted.
+            </span>
+          </div>
+
+          <div className="grid md:grid-cols-12 gap-6">
+            {/* SOS Trigger Console */}
+            <div className="md:col-span-5 gov-card rounded-2xl p-6 flex flex-col items-center justify-center text-center border-t-4 border-t-red-600">
+              {!activeIncident ? (
+                <>
+                  <div className="text-xs font-mono font-bold uppercase text-red-600 tracking-wider mb-1">Rapid Distress Beacon</div>
+                  <h2 className="text-xl font-extrabold text-gov-900">Need Immediate Assistance?</h2>
+                  <p className="text-xs text-slate-500 mt-1 mb-5">Select emergency category and activate SOS</p>
+
+                  <select
+                    value={sosReason}
+                    onChange={(e) => setSosReason(e.target.value)}
+                    className="w-full mb-6 bg-gov-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-semibold text-gov-900"
+                  >
+                    <option value="SOS Emergency">General SOS / Personal Danger</option>
+                    <option value="Medical Emergency">Medical Emergency / Injury</option>
+                    <option value="Restricted Zone Entry">Stranded in Hazardous Terrain</option>
+                  </select>
+
+                  {!confirmStep ? (
+                    <button
+                      onClick={() => setConfirmStep(true)}
+                      className="relative w-40 h-40 rounded-full bg-red-600 hover:bg-red-700 text-white font-extrabold text-lg shadow-gov-lg flex flex-col items-center justify-center gap-1 hover:scale-105 transition"
+                    >
+                      <span className="absolute inset-0 rounded-full border-2 border-red-500 sos-pulse"></span>
+                      <Icon name="siren" className="w-10 h-10" />
+                      <span>SOS</span>
+                      <span className="text-[10px] font-semibold tracking-wider opacity-95">TAP TO ARM</span>
+                    </button>
+                  ) : (
+                    <div className="w-full p-4 rounded-xl bg-red-50 border border-red-300 space-y-3">
+                      <div className="text-sm font-extrabold text-red-900">Confirm Emergency Broadcast?</div>
+                      <p className="text-xs text-red-800">This will immediately alert the Authority Command Centre with your live GPS coordinates.</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { onTriggerSOS(sosReason); setConfirmStep(false); }}
+                          className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs"
+                        >
+                          YES, SEND SOS
+                        </button>
+                        <button
+                          onClick={() => setConfirmStep(false)}
+                          className="px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-700 text-xs font-bold"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-4 w-full">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-red-50 border-2 border-red-600 flex items-center justify-center text-red-600">
+                    <Icon name="radio" className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <span className="px-3 py-1 rounded-full bg-red-600 text-white text-xs font-extrabold">SOS TRANSMITTING</span>
+                    <h3 className="text-xl font-extrabold text-gov-900 mt-2">{activeIncident.id}</h3>
+                    <p className="text-xs text-slate-600 mt-1">{activeIncident.type} • {activeIncident.severity}</p>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-gov-50 border border-slate-200 text-left text-xs space-y-1.5">
+                    <div className="text-slate-600">Command Status: <strong className="text-amber-700">{activeIncident.status}</strong></div>
+                    <div className="text-slate-600">Assigned Unit: <strong className="text-gov-900">{activeIncident.assignedTeam}</strong></div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Tip: Switch to <strong>Authority Command Centre</strong> to dispatch or resolve this incident and watch this timeline update live!
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 6-Stage Emergency Timeline */}
+            <div className="md:col-span-7 gov-card rounded-2xl p-6">
+              <h3 className="text-base font-extrabold text-gov-900 mb-5 flex items-center gap-2">
+                <Icon name="activity" className="w-4 h-4 text-teal-600" /> 6-Stage Emergency Response Pipeline
+              </h3>
+
+              <div className="space-y-4">
+                {stages.map(st => {
+                  const completed = currentStage >= st.num;
+                  const isCurrent = currentStage === st.num;
+                  return (
+                    <div key={st.num} className="flex items-start gap-3.5">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 border ${
+                        completed
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                          : 'bg-slate-100 text-slate-400 border-slate-300'
+                      }`}>
+                        {completed ? '✓' : st.num}
+                      </div>
+                      <div className={`flex-1 pb-3 border-b border-slate-100 ${isCurrent ? 'text-gov-900' : completed ? 'text-slate-800' : 'text-slate-400'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold">{st.title}</span>
+                          {isCurrent && (
+                            <span className="px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-mono font-bold">CURRENT STAGE</span>
+                          )}
+                        </div>
+                        <p className="text-xs mt-0.5">{st.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 7D. Trips & Safety Settings View
+    function TouristTripsView({ db, currentTourist, onCreateTrip, onToggleMonitoring }) {
+      const [title, setTitle] = useState('');
+      const [destination, setDestination] = useState('');
+      const [startDate, setStartDate] = useState('2026-12-01');
+      const [endDate, setEndDate] = useState('2026-12-05');
+      const [itinerary, setItinerary] = useState('');
+      const [emergencyContact, setEmergencyContact] = useState(currentTourist.emergencyContact);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!title.trim() || !destination.trim()) return;
+        onCreateTrip({ title, destination, startDate, endDate, itinerary: itinerary || 'Standard verified tourist route', emergencyContact });
+        setTitle('');
+        setDestination('');
+        setItinerary('');
+      };
+
+      return (
+        <div className="grid lg:grid-cols-12 gap-6">
+          {/* Create Trip Form */}
+          <div className="lg:col-span-5 gov-card rounded-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-lg font-extrabold text-gov-900">Register New Trip</h2>
+              <Icon name="compass" className="w-5 h-5 text-teal-600" />
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Trip Name</label>
+                <input
+                  required
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="e.g., South Goa Palolem Coastal Retreat"
+                  className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-gov-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Destination Sector</label>
+                <input
+                  required
+                  value={destination}
+                  onChange={e => setDestination(e.target.value)}
+                  placeholder="e.g., Palolem & Cabo de Rama, Goa"
+                  className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-gov-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Start Date</label>
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-gov-900" />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">End Date</label>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-gov-900" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Planned Itinerary Waypoints</label>
+                <textarea
+                  rows="2"
+                  value={itinerary}
+                  onChange={e => setItinerary(e.target.value)}
+                  placeholder="Key checkpoints, hotels, or trails..."
+                  className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2 text-gov-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Emergency Contact</label>
+                <input
+                  value={emergencyContact}
+                  onChange={e => setEmergencyContact(e.target.value)}
+                  className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-gov-900"
+                />
+              </div>
+
+              <button type="submit" className="w-full py-3 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold text-xs transition shadow-xs">
+                Save & Activate Trip Shield
+              </button>
+            </form>
+          </div>
+
+          {/* Active Trips + Privacy Toggle */}
+          <div className="lg:col-span-7 space-y-5">
+            <div className="gov-card rounded-2xl p-5 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-extrabold text-gov-900 flex items-center gap-2">
+                  <Icon name="satellite" className="w-4 h-4 text-teal-600" /> Real-Time Geo-Fence & AI Telemetry
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Allows SAFEWAY AI Sentinel to monitor route deviations and restricted zone boundaries.
+                </p>
+              </div>
+              <button
+                onClick={onToggleMonitoring}
+                className={`px-4 py-2 rounded-xl font-bold text-xs transition ${
+                  currentTourist.monitoring
+                    ? 'bg-teal-600 text-white shadow-xs'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
+                {currentTourist.monitoring ? 'ENABLED' : 'PAUSED'}
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-base font-extrabold text-gov-900">Registered Itineraries ({db.trips.length})</h3>
+              {db.trips.map(trip => (
+                <div key={trip.id} className="gov-card rounded-2xl p-5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-sky-700">{trip.id}</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      trip.status === 'Active' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-sky-50 border-sky-200 text-sky-700'
+                    }`}>
+                      {trip.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-base font-bold text-gov-900">{trip.title}</div>
+                  <div className="text-xs text-slate-600">{trip.destination} • <span className="font-mono text-slate-500">{trip.startDate} to {trip.endDate}</span></div>
+                  <div className="text-xs text-slate-700 bg-gov-50 p-3 rounded-xl border border-slate-200">
+                    <strong>Itinerary:</strong> {trip.itinerary}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 7E. SafeGuide AI Assistant View
+    function SafeGuideAIView({ currentTourist, db }) {
+      const [messages, setMessages] = useState([
+        {
+          role: 'assistant',
+          text: `Namaste ${currentTourist.name.split(' ')[0]}! I am SafeGuide AI, your official travel safety advisor. You are currently near ${currentTourist.locationName} (Safety Score: ${currentTourist.safetyScore}/100). How can I assist you today?`
+        }
+      ]);
+      const [input, setInput] = useState('');
+
+      const generateReply = (prompt) => {
+        const q = prompt.toLowerCase();
+        if (q.includes('route')) {
+          return `Route Safety Analysis for ${currentTourist.destination}: Your current corridor near ${currentTourist.locationName} is rated LOW RISK (94% safe). Avoid unguarded cliff trails near Fort Aguada (GF-02) after 19:00 IST due to low visibility and high-tide surf.`;
+        }
+        if (q.includes('safe zone') || q.includes('nearby')) {
+          const safeZones = db.zones.filter(z => z.type === 'Safe').map(z => `• ${z.name} (${z.description})`).join('\n');
+          return `Verified Safe Zones active on your radar:\n${safeZones}\nNearest Tourist Police Assistance Booth is 350m away.`;
+        }
+        if (q.includes('emergency') || q.includes('what should i do')) {
+          return `Emergency Protocol:\n1. Tap the red SOS button in SAFEWAY (or hold your Smart Band button for 3 seconds).\n2. Move toward a well-lit Safe Zone or verified hotel lobby.\n3. Keep your Digital ID (${currentTourist.id}) ready for responders. Note: This demo simulates dispatch inside SAFEWAY.`;
+        }
+        if (q.includes('translate')) {
+          return `Multilingual Emergency Phrasebook:\n• Hindi: "मुझे तुरंत पुलिस और चिकित्सा सहायता चाहिए। मेरी लोकेशन SAFEWAY पर साझा है।"\n• Marathi: "मला तात्काळ पोलीस आणि वैद्यकीय मदतीची गरज आहे."\n• Spanish: "Necesito ayuda policial y médica urgente. Mi ubicación está compartida en SAFEWAY."`;
+        }
+        if (q.includes('tip')) {
+          return `Local Safety Tips for ${currentTourist.destination}:\n• Swim only between red-and-yellow lifeguard flags.\n• Keep your Digital Tourist ID QR saved offline.\n• Share live trip telemetry when hiking Western Ghats or coastal cliffs.`;
+        }
+        return `SafeGuide AI Telemetry Check: Your GPS signal at ${currentTourist.locationName} is strong, battery is at ${currentTourist.battery}%, and Bravo Tourist Patrol is active in your sector. Ask me about route safety, nearby safe zones, or emergency translations!`;
+      };
+
+      const sendPrompt = (text) => {
+        if (!text.trim()) return;
+        const userMsg = { role: 'user', text };
+        const aiMsg = { role: 'assistant', text: generateReply(text) };
+        setMessages(prev => [...prev, userMsg, aiMsg]);
+        setInput('');
+      };
+
+      const quickPrompts = [
+        "Is my route safe?",
+        "Find nearby safe zones",
+        "What should I do in an emergency?",
+        "Translate an emergency message",
+        "Give me local safety tips"
+      ];
+
+      return (
+        <div className="max-w-4xl mx-auto gov-card rounded-2xl overflow-hidden flex flex-col h-[600px]">
+          <div className="p-4 sm:p-5 bg-gov-900 text-white flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-500 text-white flex items-center justify-center">
+                <Icon name="bot" className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="text-sm font-extrabold text-white">SafeGuide AI Safety Assistant</div>
+                <div className="text-[11px] text-sky-200">Contextual Telemetry Engine • Ready for LLM API Integration</div>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[10px] font-mono font-bold">ONLINE</span>
+          </div>
+
+          {/* Chat Feed */}
+          <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-gov-50">
+            {messages.map((m, idx) => (
+              <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[82%] rounded-2xl px-4 py-3 text-xs sm:text-sm whitespace-pre-line leading-relaxed shadow-2xs ${
+                  m.role === 'user'
+                    ? 'bg-gov-900 text-white font-medium'
+                    : 'bg-white border border-slate-200 text-slate-800'
+                }`}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick Action Chips */}
+          <div className="px-4 py-2.5 bg-white border-t border-slate-200 flex items-center gap-2 overflow-x-auto">
+            {quickPrompts.map((qp, i) => (
+              <button
+                key={i}
+                onClick={() => sendPrompt(qp)}
+                className="px-3 py-1.5 rounded-full bg-gov-50 hover:bg-teal-50 border border-slate-300 hover:border-teal-400 text-gov-900 text-xs font-semibold whitespace-nowrap transition"
+              >
+                {qp}
+              </button>
+            ))}
+          </div>
+
+          {/* Input Box */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); sendPrompt(input); }}
+            className="p-3.5 bg-white border-t border-slate-200 flex items-center gap-2.5"
+          >
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask SafeGuide about routes, safe zones, or emergency steps..."
+              className="flex-1 bg-gov-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-gov-900 focus:outline-none focus:border-teal-600 focus:bg-white"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm flex items-center gap-1.5"
+            >
+              <span>Send</span> <Icon name="send" className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    // =========================================================================
+    // 8. AUTHORITY COMMAND CENTRE PORTAL (CLEAN LIGHT GOV-TECH WORKSPACE + NAVY SIDEBAR)
+    // =========================================================================
+    function AuthorityPortal({
+      t, db, activeTab, setActiveTab,
+      onUpdateIncident, onEscalateAi, onDismissAi, onAddZone, onSimulateBreach, onTriggerBandSOS,
+      LanguageSelector, onSwitchRole, onGoHome, onResetDemo,
+      mobileSidebarOpen, setMobileSidebarOpen
+    }) {
+      const openIncidentsCount = db.incidents.filter(i => i.status !== 'Resolved').length;
+      const activeAiCount = db.aiAlerts.filter(a => a.status !== 'Dismissed').length;
+
+      const navItems = [
+        { id: 'overview', label: 'Command Overview', icon: 'radar' },
+        { id: 'incidents', label: t.incidents, icon: 'siren', badge: openIncidentsCount },
+        { id: 'ai', label: t.aiAnomaly, icon: 'brain-circuit', badge: activeAiCount },
+        { id: 'geofence', label: t.geoFencing, icon: 'map-pin' },
+        { id: 'devices', label: t.smartDevices, icon: 'watch' },
+        { id: 'tourists', label: t.touristsDir, icon: 'users' },
+        { id: 'analytics', label: t.analytics, icon: 'bar-chart-3' }
+      ];
+
+      return (
+        <div className="min-h-screen flex bg-gov-50">
+          {mobileSidebarOpen && (
+            <div onClick={() => setMobileSidebarOpen(false)} className="fixed inset-0 bg-gov-950/40 z-40 lg:hidden" />
+          )}
+
+          {/* Authoritative Deep Navy Command Sidebar */}
+          <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-72 bg-gov-900 text-white border-r border-gov-800 flex flex-col transition-transform duration-200 ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+            <div className="h-16 px-5 flex items-center justify-between border-b border-gov-800">
+              <button onClick={onGoHome} className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center">
+                  <Icon name="shield" className="w-5 h-5 text-gov-900" />
+                </div>
+                <div className="text-left">
+                  <div className="text-base font-extrabold text-white">SAFE<span className="text-teal-400">WAY</span></div>
+                  <div className="text-[10px] font-mono text-sky-300 uppercase">Authority Command</div>
+                </div>
+              </button>
+              <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden text-slate-300">
+                <Icon name="x" className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 m-3 rounded-xl bg-gov-800/90 border border-gov-700 text-xs space-y-1">
+              <div className="font-mono text-[10px] text-sky-300 uppercase">Ops Center • Goa & Pune</div>
+              <div className="font-bold text-white">Tourism Police & Rescue HQ</div>
+              <div className="text-[11px] text-teal-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-teal-400"></span> All Telemetry Streams Live
+              </div>
+            </div>
+
+            <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setActiveTab(item.id); setMobileSidebarOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition ${
+                    activeTab === item.id
+                      ? 'bg-teal-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:bg-gov-800 hover:text-white'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Icon name={item.icon} className="w-4 h-4" />
+                    {item.label}
+                  </span>
+                  {item.badge > 0 && (
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                      item.id === 'incidents' ? 'bg-red-600 text-white' : 'bg-amber-500 text-gov-950'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+
+            <div className="p-4 border-t border-gov-800 space-y-2">
+              <button
+                onClick={onSwitchRole}
+                className="w-full py-2.5 rounded-xl bg-gov-800 hover:bg-gov-700 text-white text-xs font-bold flex items-center justify-center gap-2 border border-gov-700"
+              >
+                <Icon name="repeat" className="w-3.5 h-3.5 text-teal-400" /> {t.switchRole} (Tourist App)
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Workspace */}
+          <div className="flex-1 flex flex-col min-w-0">
+            <header className="sticky top-0 z-30 gov-header h-16 px-4 sm:px-6 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-lg bg-slate-100 text-gov-900">
+                  <Icon name="menu" className="w-5 h-5" />
+                </button>
+                <div>
+                  <h1 className="text-sm sm:text-base font-extrabold text-gov-900">{t.commandCentre}</h1>
+                  <div className="text-[11px] text-slate-500 hidden sm:block">Centralized Incident Dispatch, AI Sentinel & Geo-Fence Operations</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <LanguageSelector />
+                <button
+                  onClick={onResetDemo}
+                  title="Reset Demo Data"
+                  className="p-2 rounded-lg bg-white hover:bg-slate-100 text-slate-600 hover:text-gov-900 border border-slate-300"
+                >
+                  <Icon name="rotate-ccw" className="w-4 h-4" />
+                </button>
+              </div>
+            </header>
+
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+              {activeTab === 'overview' && (
+                <AuthorityOverviewView t={t} db={db} onNavigate={setActiveTab} />
+              )}
+              {activeTab === 'incidents' && (
+                <IncidentManagementView db={db} onUpdateIncident={onUpdateIncident} />
+              )}
+              {activeTab === 'ai' && (
+                <AIAnomalyView db={db} onEscalate={onEscalateAi} onDismiss={onDismissAi} onNavigate={setActiveTab} />
+              )}
+              {activeTab === 'geofence' && (
+                <GeoFencingView db={db} onAddZone={onAddZone} onSimulateBreach={onSimulateBreach} />
+              )}
+              {activeTab === 'devices' && (
+                <SmartDevicesView db={db} onTriggerBandSOS={onTriggerBandSOS} onNavigate={setActiveTab} />
+              )}
+              {activeTab === 'tourists' && (
+                <TouristsDirectoryView db={db} />
+              )}
+              {activeTab === 'analytics' && (
+                <AnalyticsReportsView db={db} />
+              )}
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    // 8A. Authority Overview Dashboard (8 KPIs + Tactical Map + Live Feed)
+    function AuthorityOverviewView({ t, db, onNavigate }) {
+      const totalTourists = db.tourists.length;
+      const activeMonitored = db.tourists.filter(x => x.monitoring).length;
+      const activeEmergencies = db.incidents.filter(i => i.status !== 'Resolved' && (i.severity === 'Critical' || i.type === 'SOS Emergency')).length;
+      const missingTourists = db.incidents.filter(i => i.type === 'Missing Tourist' && i.status !== 'Resolved').length;
+      const highRiskAlerts = db.incidents.filter(i => i.status !== 'Resolved' && i.severity === 'High').length;
+      const resolvedIncidents = db.incidents.filter(i => i.status === 'Resolved').length;
+      const aiAlertsCount = db.aiAlerts.length;
+      const teamsCount = db.responseTeams.length;
+
+      const kpis = [
+        { label: "Total Registered Tourists", val: totalTourists, icon: "users", color: "navy" },
+        { label: t.activeTourists, val: activeMonitored, icon: "radar", color: "teal" },
+        { label: t.activeEmergencies, val: activeEmergencies, icon: "siren", color: "red" },
+        { label: "Missing Tourists", val: missingTourists, icon: "user-x", color: "amber" },
+        { label: "High-Risk Alerts", val: highRiskAlerts, icon: "alert-triangle", color: "amber" },
+        { label: t.resolvedIncidents, val: resolvedIncidents, icon: "check-circle-2", color: "teal" },
+        { label: "AI Anomaly Alerts", val: aiAlertsCount, icon: "brain-circuit", color: "sky" },
+        { label: t.responseTeams, val: teamsCount, icon: "truck", color: "navy" }
+      ];
+
+      return (
+        <div className="space-y-6">
+          {/* 8 KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {kpis.map((k, idx) => (
+              <div key={idx} className="gov-card rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] text-slate-500 font-semibold">{k.label}</div>
+                  <div className={`text-2xl sm:text-3xl font-extrabold mt-1 ${
+                    k.color === 'red' ? 'text-red-600' :
+                    k.color === 'amber' ? 'text-amber-600' :
+                    k.color === 'teal' ? 'text-teal-700' : 'text-gov-900'
+                  }`}>{k.val}</div>
+                </div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                  k.color === 'red' ? 'bg-red-50 border-red-200 text-red-600' :
+                  k.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-600' :
+                  k.color === 'teal' ? 'bg-teal-50 border-teal-200 text-teal-700' :
+                  'bg-gov-100 border-slate-200 text-gov-900'
+                }`}>
+                  <Icon name={k.icon} className="w-5 h-5" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tactical Map + Live Incident & Team Status */}
+          <div className="grid lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-extrabold text-gov-900 flex items-center gap-2">
+                  <Icon name="globe-2" className="w-4 h-4 text-teal-600" /> Live Tactical Command Map
+                </h2>
+                <button onClick={() => onNavigate('geofence')} className="text-xs font-bold text-sky-700 hover:underline">
+                  Manage Geo-Fences →
+                </button>
+              </div>
+              <InteractiveSafetyMap
+                tourists={db.tourists}
+                zones={db.zones}
+                incidents={db.incidents}
+                teams={db.responseTeams}
+                heightClass="h-[430px]"
+              />
+            </div>
+
+            <div className="lg:col-span-4 space-y-5">
+              {/* Active Incidents Feed */}
+              <div className="gov-card rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold text-gov-900">Priority Incident Feed</h3>
+                  <button onClick={() => onNavigate('incidents')} className="text-xs font-bold text-sky-700 hover:underline">View All</button>
+                </div>
+
+                <div className="space-y-2.5 max-h-[230px] overflow-y-auto pr-1">
+                  {db.incidents.filter(i => i.status !== 'Resolved').map(inc => (
+                    <div
+                      key={inc.id}
+                      onClick={() => onNavigate('incidents')}
+                      className="p-3 rounded-xl bg-gov-50 border border-slate-200 hover:border-red-400 cursor-pointer transition"
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-mono font-bold text-red-700">{inc.id}</span>
+                        <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold">{inc.status}</span>
+                      </div>
+                      <div className="text-xs font-bold text-gov-900 mt-1">{inc.type} — {inc.touristName}</div>
+                      <div className="text-[11px] text-slate-600 truncate">{inc.location}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Response Teams Readiness */}
+              <div className="gov-card rounded-xl p-5 space-y-3">
+                <h3 className="text-sm font-extrabold text-gov-900">Field Response Units</h3>
+                <div className="space-y-2 text-xs">
+                  {db.responseTeams.map(rt => (
+                    <div key={rt.id} className="flex items-center justify-between p-2.5 rounded-xl bg-gov-50 border border-slate-200">
+                      <div>
+                        <div className="font-bold text-gov-900">{rt.name}</div>
+                        <div className="text-[11px] text-slate-500">{rt.location}</div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        rt.status === 'Available' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                        rt.status === 'Busy' ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-sky-50 border-sky-200 text-sky-700'
+                      }`}>
+                        {rt.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 8B. Incident Management View
+    function IncidentManagementView({ db, onUpdateIncident }) {
+      const [search, setSearch] = useState('');
+      const [statusFilter, setStatusFilter] = useState('All');
+      const [typeFilter, setTypeFilter] = useState('All');
+      const [selectedIncId, setSelectedIncId] = useState(db.incidents[0]?.id || null);
+      const [noteInput, setNoteInput] = useState('');
+
+      const filtered = db.incidents.filter(inc => {
+        const matchesSearch =
+          inc.id.toLowerCase().includes(search.toLowerCase()) ||
+          inc.touristName.toLowerCase().includes(search.toLowerCase()) ||
+          inc.location.toLowerCase().includes(search.toLowerCase());
+        const matchesStatus = statusFilter === 'All' || inc.status === statusFilter;
+        const matchesType = typeFilter === 'All' || inc.type === typeFilter;
+        return matchesSearch && matchesStatus && matchesType;
+      });
+
+      const selectedInc = db.incidents.find(i => i.id === selectedIncId) || filtered[0];
+
+      return (
+        <div className="space-y-6">
+          {/* Search & Filters Bar */}
+          <div className="gov-card rounded-xl p-4 flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[200px] relative">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search Incident ID, Tourist Name, or Location..."
+                className="w-full bg-gov-50 border border-slate-300 rounded-xl pl-3.5 pr-4 py-2 text-xs text-gov-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-gov-900"
+            >
+              <option value="All">All Statuses</option>
+              <option value="New">New</option>
+              <option value="Investigating">Investigating</option>
+              <option value="Team Dispatched">Team Dispatched</option>
+              <option value="Resolved">Resolved</option>
+            </select>
+
+            <select
+              value={typeFilter}
+              onChange={e => setTypeFilter(e.target.value)}
+              className="bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-gov-900"
+            >
+              <option value="All">All Incident Types</option>
+              <option value="SOS Emergency">SOS Emergency</option>
+              <option value="Route Deviation">Route Deviation</option>
+              <option value="Restricted Zone Entry">Restricted Zone Entry</option>
+              <option value="Medical Emergency">Medical Emergency</option>
+              <option value="Inactivity">Inactivity</option>
+              <option value="Missing Tourist">Missing Tourist</option>
+            </select>
+          </div>
+
+          <div className="grid lg:grid-cols-12 gap-6">
+            {/* Incidents Table */}
+            <div className="lg:col-span-7 gov-card rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gov-900 text-white text-[11px] font-mono uppercase">
+                      <th className="py-3 px-4">Incident</th>
+                      <th className="py-3 px-4">Tourist</th>
+                      <th className="py-3 px-4">Severity</th>
+                      <th className="py-3 px-4">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 text-xs">
+                    {filtered.map(inc => (
+                      <tr
+                        key={inc.id}
+                        onClick={() => setSelectedIncId(inc.id)}
+                        className={`cursor-pointer transition ${selectedInc?.id === inc.id ? 'bg-sky-50' : 'hover:bg-slate-50'}`}
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="font-mono font-bold text-sky-800">{inc.id}</div>
+                          <div className="font-bold text-gov-900">{inc.type}</div>
+                          <div className="text-[11px] text-slate-500">{inc.time}</div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-gov-900">{inc.touristName}</div>
+                          <div className="text-[11px] text-slate-500 truncate max-w-[160px]">{inc.location}</div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            inc.severity === 'Critical' ? 'bg-red-50 border-red-200 text-red-700' :
+                            inc.severity === 'High' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+                            'bg-sky-50 border-sky-200 text-sky-700'
+                          }`}>
+                            {inc.severity}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            inc.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' :
+                            inc.status === 'Team Dispatched' ? 'bg-sky-100 text-sky-800' :
+                            inc.status === 'Investigating' ? 'bg-amber-100 text-amber-800' :
+                            'bg-red-600 text-white'
+                          }`}>
+                            {inc.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Incident Detail & Dispatch Inspector */}
+            {selectedInc && (
+              <div className="lg:col-span-5 gov-card rounded-xl p-6 space-y-5">
+                <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+                  <div>
+                    <span className="text-xs font-mono font-bold text-sky-700">{selectedInc.id} • {selectedInc.touristId}</span>
+                    <h3 className="text-lg font-extrabold text-gov-900 mt-0.5">{selectedInc.type}</h3>
+                    <div className="text-xs text-slate-600">Tourist: <strong>{selectedInc.touristName}</strong></div>
+                  </div>
+                  {selectedInc.status !== 'Resolved' && (
+                    <button
+                      onClick={() => onUpdateIncident(selectedInc.id, { status: 'Resolved' }, 'Incident marked RESOLVED by Command Supervisor.')}
+                      className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs"
+                    >
+                      Resolve Incident
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Update Incident Status</label>
+                    <select
+                      value={selectedInc.status}
+                      onChange={e => onUpdateIncident(selectedInc.id, { status: e.target.value }, `Status changed to ${e.target.value}.`)}
+                      className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-gov-900"
+                    >
+                      <option value="New">New</option>
+                      <option value="Investigating">Investigating</option>
+                      <option value="Team Dispatched">Team Dispatched</option>
+                      <option value="Resolved">Resolved</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Assign Response Unit</label>
+                    <select
+                      value={selectedInc.assignedTeam}
+                      onChange={e => onUpdateIncident(selectedInc.id, { assignedTeam: e.target.value, status: selectedInc.status === 'New' ? 'Team Dispatched' : selectedInc.status }, `Assigned unit: ${e.target.value}.`)}
+                      className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 font-semibold text-gov-900"
+                    >
+                      <option value="Unassigned">Unassigned</option>
+                      {db.responseTeams.map(rt => (
+                        <option key={rt.id} value={rt.name}>{rt.name} ({rt.status})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Investigation Notes */}
+                  <div className="pt-2">
+                    <div className="text-gov-900 font-bold mb-2">Investigation & Dispatch Log</div>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto bg-gov-50 p-3 rounded-xl border border-slate-200">
+                      {selectedInc.notes.map((n, idx) => (
+                        <div key={idx} className="text-[11px] text-slate-700 border-l-2 border-teal-600 pl-2">
+                          {n}
+                        </div>
+                      ))}
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!noteInput.trim()) return;
+                        onUpdateIncident(selectedInc.id, {}, noteInput);
+                        setNoteInput('');
+                      }}
+                      className="mt-2.5 flex gap-2"
+                    >
+                      <input
+                        value={noteInput}
+                        onChange={e => setNoteInput(e.target.value)}
+                        placeholder="Add officer note..."
+                        className="flex-1 bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-gov-900"
+                      />
+                      <button type="submit" className="px-3.5 py-2 rounded-xl bg-gov-900 text-white font-bold text-xs">
+                        Add
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 8C. AI Anomaly Detection View
+    function AIAnomalyView({ db, onEscalate, onDismiss, onNavigate }) {
+      return (
+        <div className="space-y-6">
+          <div className="gov-card rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-l-amber-500">
+            <div>
+              <div className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase text-amber-700">
+                <Icon name="cpu" className="w-4 h-4" /> Simulated AI Behavioral & Telemetry Sentinel
+              </div>
+              <h2 className="text-xl font-extrabold text-gov-900 mt-1">Real-Time Anomaly Detections ({db.aiAlerts.length})</h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                AI models continuously analyze GPS trajectories, accelerometer spikes, and geo-fence proximity to flag anomalies before manual SOS.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-5">
+            {db.aiAlerts.map(alert => (
+              <div key={alert.id} className="gov-card rounded-xl p-6 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-sky-700">{alert.id} • {alert.timestamp}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold border ${
+                      alert.riskScore >= 85 ? 'bg-red-50 text-red-700 border-red-200' :
+                      'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}>
+                      AI Risk Score: {alert.riskScore}/100
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base font-extrabold text-gov-900">{alert.type}</h3>
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      Tourist: <strong>{alert.touristName}</strong> <span className="font-mono text-slate-500">({alert.touristId})</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-gov-50 border border-slate-200 space-y-1.5 text-xs">
+                    <div className="text-amber-800 font-bold">Trigger: {alert.reason}</div>
+                    <div className="text-slate-700"><strong>AI Explanation:</strong> {alert.explanation}</div>
+                    <div className="text-teal-800 font-medium"><strong>Recommended Action:</strong> {alert.recommendation}</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => onEscalate(alert.id)}
+                    className="px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Icon name="siren" className="w-3.5 h-3.5" />
+                    {alert.status === 'Escalated' ? 'Create Another Ticket' : 'Escalate to Incident'}
+                  </button>
+                  <button
+                    onClick={() => onNavigate('tourists')}
+                    className="px-3 py-2 rounded-lg bg-white hover:bg-slate-50 text-gov-900 border border-slate-300 text-xs font-bold"
+                  >
+                    View Tourist
+                  </button>
+                  <button
+                    onClick={() => onDismiss(alert.id)}
+                    className="px-3 py-2 rounded-lg text-slate-500 hover:text-slate-800 text-xs font-semibold ml-auto"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 8D. Geo-Fencing Management View
+    function GeoFencingView({ db, onAddZone, onSimulateBreach }) {
+      const [name, setName] = useState('');
+      const [type, setType] = useState('Restricted');
+      const [riskLevel, setRiskLevel] = useState('High');
+      const [preset, setPreset] = useState('anjuna');
+      const [radius, setRadius] = useState(750);
+
+      const presets = {
+        anjuna: { label: 'Anjuna Cliff & Reef (Goa)', lat: 15.5765, lng: 73.7360 },
+        baga: { label: 'Baga River Mouth (Goa)', lat: 15.5612, lng: 73.7495 },
+        mulshi: { label: 'Mulshi Dam Steep Gorge (Pune)', lat: 18.5040, lng: 73.5130 },
+        shaniwar: { label: 'Pune Old City Heritage Zone', lat: 18.5196, lng: 73.8553 }
+      };
+
+      const handleCreate = (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        const coords = presets[preset];
+        onAddZone({
+          name,
+          type,
+          riskLevel,
+          lat: coords.lat,
+          lng: coords.lng,
+          radius: Number(radius),
+          description: `Authority-configured ${type} perimeter near ${coords.label}.`
+        });
+        setName('');
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="grid lg:grid-cols-12 gap-6">
+            {/* Create Zone Form */}
+            <div className="lg:col-span-4 gov-card rounded-xl p-6 space-y-4">
+              <h2 className="text-lg font-extrabold text-gov-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Icon name="plus-square" className="w-5 h-5 text-teal-600" /> Deploy Geo-Fence Zone
+              </h2>
+
+              <form onSubmit={handleCreate} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Zone Name</label>
+                  <input
+                    required
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g., Anjuna North Reef Hazard"
+                    className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-gov-900"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Zone Classification</label>
+                    <select value={type} onChange={e => setType(e.target.value)} className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-gov-900 font-semibold">
+                      <option value="Safe">Safe Zone</option>
+                      <option value="Warning">Warning Zone</option>
+                      <option value="Restricted">Restricted Zone</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1">Risk Level</label>
+                    <select value={riskLevel} onChange={e => setRiskLevel(e.target.value)} className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-gov-900 font-semibold">
+                      <option value="Low">Low</option>
+                      <option value="Moderate">Moderate</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Coordinate Sector</label>
+                  <select value={preset} onChange={e => setPreset(e.target.value)} className="w-full bg-gov-50 border border-slate-300 rounded-xl px-3 py-2 text-gov-900 font-semibold">
+                    {Object.entries(presets).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Radius (meters): {radius}m</label>
+                  <input type="range" min="300" max="2000" step="50" value={radius} onChange={e => setRadius(e.target.value)} className="w-full accent-teal-600" />
+                </div>
+
+                <button type="submit" className="w-full py-3 rounded-xl bg-gov-900 hover:bg-gov-800 text-white font-bold text-xs shadow-xs">
+                  Activate Geo-Fence Perimeter
+                </button>
+              </form>
+            </div>
+
+            {/* Interactive Map */}
+            <div className="lg:col-span-8">
+              <InteractiveSafetyMap
+                tourists={db.tourists}
+                zones={db.zones}
+                incidents={db.incidents}
+                teams={db.responseTeams}
+                heightClass="h-[410px]"
+              />
+            </div>
+          </div>
+
+          {/* Active Zones List with Breach Simulator */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {db.zones.map(z => (
+              <div key={z.id} className="gov-card rounded-xl p-5 flex flex-col justify-between space-y-3">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-semibold text-slate-500">{z.id} • {z.radius}m</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                      z.type === 'Safe' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                      z.type === 'Restricted' ? 'bg-red-50 border-red-200 text-red-700' :
+                      'bg-amber-50 border-amber-200 text-amber-800'
+                    }`}>
+                      {z.type.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-gov-900 mt-1.5">{z.name}</div>
+                  <p className="text-xs text-slate-600 mt-1">{z.description}</p>
+                </div>
+
+                {z.type !== 'Safe' && (
+                  <button
+                    onClick={() => onSimulateBreach(z)}
+                    className="w-full py-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Icon name="alert-triangle" className="w-3.5 h-3.5" /> Simulate Tourist Zone Breach
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 8E. Smart IoT Devices View
+    function SmartDevicesView({ db, onTriggerBandSOS, onNavigate }) {
+      return (
+        <div className="space-y-6">
+          <div className="gov-card rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 border-l-sky-600">
+            <div>
+              <h2 className="text-xl font-extrabold text-gov-900">SAFEWAY IoT Safety Wearables ({db.devices.length})</h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Ruggedized LoRaWAN + GNSS wrist bands issued for coastal water-sports and Sahyadri hill trekking. Triggering Physical SOS creates a live incident.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {db.devices.map(dev => (
+              <div key={dev.id} className="gov-card rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-sky-700">{dev.id}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                    dev.status === 'SOS Triggered' ? 'bg-red-600 text-white border-red-600' :
+                    dev.status === 'Warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                    'bg-emerald-50 border-emerald-200 text-emerald-700'
+                  }`}>
+                    {dev.status.toUpperCase()}
+                  </span>
+                </div>
+
+                <div>
+                  <div className="text-base font-extrabold text-gov-900">{dev.touristName}</div>
+                  <div className="text-xs font-mono text-slate-500">{dev.touristId}</div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-gov-50 border border-slate-200 text-center text-xs">
+                  <div>
+                    <div className="text-slate-500 text-[10px] font-semibold">Battery</div>
+                    <div className="font-bold text-emerald-700">{dev.battery}%</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-[10px] font-semibold">Pulse</div>
+                    <div className="font-bold text-red-600">{dev.heartRate} bpm</div>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-[10px] font-semibold">Link</div>
+                    <div className="font-bold text-gov-900 truncate">{dev.connectivity.split('+')[0]}</div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-600 flex items-center gap-1.5">
+                  <Icon name="map-pin" className="w-3.5 h-3.5 text-teal-600" /> {dev.location}
+                </div>
+
+                <button
+                  onClick={() => {
+                    onTriggerBandSOS(dev.touristId);
+                    onNavigate('incidents');
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition"
+                >
+                  <Icon name="radio" className="w-4 h-4" /> Trigger Physical Band SOS
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 8F. Monitored Tourists Directory
+    function TouristsDirectoryView({ db }) {
+      const [query, setQuery] = useState('');
+      const [statusFilter, setStatusFilter] = useState('All');
+
+      const filtered = db.tourists.filter(t => {
+        const matchesQ = t.name.toLowerCase().includes(query.toLowerCase()) || t.id.toLowerCase().includes(query.toLowerCase()) || t.nationality.toLowerCase().includes(query.toLowerCase());
+        const matchesS = statusFilter === 'All' || t.status === statusFilter;
+        return matchesQ && matchesS;
+      });
+
+      return (
+        <div className="space-y-5">
+          <div className="gov-card rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search 20 registered tourists by Name, Digital ID, or Country..."
+              className="flex-1 min-w-[240px] bg-gov-50 border border-slate-300 rounded-xl px-4 py-2 text-xs text-gov-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+            />
+            <div className="flex gap-2">
+              {['All', 'Safe', 'Caution', 'Emergency'].map(st => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    statusFilter === st ? 'bg-gov-900 text-white' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="gov-card rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gov-900 text-white font-mono text-[11px] uppercase">
+                    <th className="py-3.5 px-4">Tourist & Digital ID</th>
+                    <th className="py-3.5 px-4">Nationality</th>
+                    <th className="py-3.5 px-4">Current GPS Sector</th>
+                    <th className="py-3.5 px-4">Safety Score</th>
+                    <th className="py-3.5 px-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filtered.map(tr => (
+                    <tr key={tr.id} className="hover:bg-slate-50">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-gov-900">{tr.name}</div>
+                        <div className="font-mono text-[11px] text-sky-700">{tr.id}</div>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-700 font-medium">{tr.nationality}</td>
+                      <td className="py-3.5 px-4 text-slate-600">{tr.locationName}</td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-gov-900">{tr.safetyScore}/100</td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          tr.status === 'Emergency' ? 'bg-red-50 border-red-200 text-red-700' :
+                          tr.status === 'Caution' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                          'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        }`}>
+                          {tr.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 8G. Analytics & Reports View (Responsive Clean SVG Charts)
+    function AnalyticsReportsView({ db }) {
+      const incidentTypes = [
+        { label: 'SOS Emergency', count: db.incidents.filter(i => i.type === 'SOS Emergency').length, color: '#DC2626' },
+        { label: 'Zone Breach', count: db.incidents.filter(i => i.type === 'Restricted Zone Entry').length, color: '#D97706' },
+        { label: 'Route Deviation', count: db.incidents.filter(i => i.type === 'Route Deviation').length, color: '#0284C7' },
+        { label: 'Medical / Inactivity', count: db.incidents.filter(i => i.type === 'Medical Emergency' || i.type === 'Inactivity').length, color: '#0D9488' }
+      ];
+
+      const dailyTrends = [
+        { day: 'Mon', alerts: 4, resolved: 4 },
+        { day: 'Tue', alerts: 6, resolved: 6 },
+        { day: 'Wed', alerts: 3, resolved: 3 },
+        { day: 'Thu', alerts: 7, resolved: 6 },
+        { day: 'Fri', alerts: 5, resolved: 5 },
+        { day: 'Sat', alerts: 9, resolved: 8 },
+        { day: 'Today', alerts: db.incidents.length, resolved: db.incidents.filter(i => i.status === 'Resolved').length }
+      ];
+
+      const hourlyActivity = [42, 38, 35, 31, 45, 78, 125, 180, 220, 260, 295, 310];
+
+      return (
+        <div className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Incident Distribution Bar Chart */}
+            <div className="gov-card rounded-xl p-6 space-y-4">
+              <h3 className="text-base font-extrabold text-gov-900">Incident Category Distribution</h3>
+              <div className="space-y-3.5 pt-2">
+                {incidentTypes.map((item, idx) => {
+                  const pct = Math.min(100, Math.round((item.count / Math.max(1, db.incidents.length)) * 100));
+                  return (
+                    <div key={idx} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-700 font-bold">{item.label}</span>
+                        <span className="font-mono text-gov-900 font-bold">{item.count} ({pct}%)</span>
+                      </div>
+                      <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Daily Emergency & Resolution Trends */}
+            <div className="gov-card rounded-xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-extrabold text-gov-900">7-Day Incident & Resolution Trends</h3>
+                <div className="flex items-center gap-3 text-[11px] font-semibold">
+                  <span className="flex items-center gap-1 text-gov-900"><span className="w-2.5 h-2.5 rounded-xs bg-gov-900"></span> Total</span>
+                  <span className="flex items-center gap-1 text-teal-700"><span className="w-2.5 h-2.5 rounded-xs bg-teal-600"></span> Resolved</span>
+                </div>
+              </div>
+              <div className="h-48 flex items-end justify-between gap-2 pt-4 px-2 border-b border-slate-200 pb-2">
+                {dailyTrends.map((d, idx) => (
+                  <div key={idx} className="flex-1 flex flex-col items-center gap-2">
+                    <div className="w-full flex items-end justify-center gap-1 h-36">
+                      <div className="w-3 bg-gov-900 rounded-t" style={{ height: `${d.alerts * 12}px` }} title={`Total: ${d.alerts}`} />
+                      <div className="w-3 bg-teal-600 rounded-t" style={{ height: `${d.resolved * 12}px` }} title={`Resolved: ${d.resolved}`} />
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold text-slate-600">{d.day}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tourist Telemetry Traffic */}
+            <div className="gov-card rounded-xl p-6 space-y-4">
+              <h3 className="text-base font-extrabold text-gov-900">Active Tourist Telemetry Volume (24h)</h3>
+              <svg viewBox="0 0 360 120" className="w-full h-40 overflow-visible">
+                <defs>
+                  <linearGradient id="areaGradGov" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0284C7" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="#0284C7" stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+                <polygon
+                  fill="url(#areaGradGov)"
+                  points={`0,120 ${hourlyActivity.map((v, i) => `${i * 32.7},${120 - (v / 320) * 100}`).join(' ')} 360,120`}
+                />
+                <polyline
+                  fill="none"
+                  stroke="#0284C7"
+                  strokeWidth="3"
+                  points={hourlyActivity.map((v, i) => `${i * 32.7},${120 - (v / 320) * 100}`).join(' ')}
+                />
+              </svg>
+              <div className="flex justify-between text-[10px] font-mono font-semibold text-slate-500">
+                <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:59</span>
+              </div>
+            </div>
+
+            {/* Response Time & Safety Breakdown */}
+            <div className="gov-card rounded-xl p-6 space-y-4">
+              <h3 className="text-base font-extrabold text-gov-900">Response SLA & Fleet Safety Summary</h3>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-xl bg-gov-50 border border-slate-200">
+                  <div className="text-xs font-semibold text-slate-500">Avg Coastal Dispatch</div>
+                  <div className="text-2xl font-extrabold text-teal-700 mt-1">3m 48s</div>
+                  <div className="text-[11px] text-slate-500 mt-1">-28% faster than target SLA</div>
+                </div>
+                <div className="p-4 rounded-xl bg-gov-50 border border-slate-200">
+                  <div className="text-xs font-semibold text-slate-500">Geo-Fence Prevention</div>
+                  <div className="text-2xl font-extrabold text-sky-700 mt-1">96.4%</div>
+                  <div className="text-[11px] text-slate-500 mt-1">Auto-deterred via SMS alerts</div>
+                </div>
+                <div className="p-4 rounded-xl bg-gov-50 border border-slate-200">
+                  <div className="text-xs font-semibold text-slate-500">Tourists in Safe Status</div>
+                  <div className="text-2xl font-extrabold text-gov-900 mt-1">
+                    {db.tourists.filter(t => t.status === 'Safe').length} / {db.tourists.length}
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-gov-50 border border-slate-200">
+                  <div className="text-xs font-semibold text-slate-500">IoT Band Uptime</div>
+                  <div className="text-2xl font-extrabold text-emerald-700 mt-1">99.8%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
